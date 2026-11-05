@@ -1,19 +1,22 @@
 {
   "name": "brandcite",
   "version": "0.1.0",
-  "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "vitest --no-vite",
+    "test": "vitest",
     "test:watch": "vitest",
     "test:exact": "vitest run lib/__tests__/exactChecks.test.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.0"
+  },
   "devDependencies": {
-    "vitest": "^1.2.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "^8.3.6",
+    "vitest": "^1.2.0"
   }
 }

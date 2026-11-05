@@ -163,3 +163,4 @@ export async function runExactChecks(
   console.log('DEBUG: findings count =', findings.length);
   console.log(findings.map(f => ({ source_id: f.source_id, issue: f.issue, quote: f.quote })));
   return findings;
+}
