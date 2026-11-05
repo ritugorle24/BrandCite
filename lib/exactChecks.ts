@@ -51,7 +51,8 @@ function escapeRegExp(str: string): string {
 
 /** Return a case‑insensitive whole‑word regex for a term */
 function wordRegex(term: string): RegExp {
-  return new RegExp(`\\b${escapeRegExp(term)}\\b`, "i");
+  // Global, case‑insensitive regex to allow exec() to advance via lastIndex
+  return new RegExp(`\\b${escapeRegExp(term)}\\b`, "gi");
 }
 
 /** Trim a snippet to a reasonable length, preserving the match */
@@ -141,24 +142,24 @@ export async function runExactChecks(
   const claimRule = rules.find((r) => r.category.toLowerCase().includes("claim"));
   const claimSourceId = claimRule ? claimRule.id : null;
 
-  for (const word of claimWords) {
-    const re = new RegExp(`\\b${escapeRegExp(word)}\\b`, "i");
-    let match: RegExpExecArray | null;
-    while ((match = re.exec(lowered)) !== null) {
-      const start = match.index;
-      const end = start + match[0].length;
-      findings.push({
-        source_id: claimSourceId,
-        issue: "unsupported absolute claim",
-        quote: snippet(text, start, end),
-        severity: "high",
-        suggestion: "remove or qualify the claim",
-        confidence: 1,
-        ai_assisted: false,
-      });
-      re.lastIndex = end;
+    for (const word of claimWords) {
+      const re = new RegExp(`\\b${escapeRegExp(word)}\\b`, "gi");
+      for (const match of text.matchAll(re)) {
+        const start = match.index!;
+        const end = start + match[0].length;
+        findings.push({
+          source_id: claimSourceId,
+          issue: "unsupported absolute claim",
+          quote: snippet(text, start, end),
+          severity: "high",
+          suggestion: "remove or qualify the claim",
+          confidence: 1,
+          ai_assisted: false,
+        });
+      }
     }
-  }
 
+  // DEBUG – temporary logging
+  console.log('DEBUG: findings count =', findings.length);
+  console.log(findings.map(f => ({ source_id: f.source_id, issue: f.issue, quote: f.quote })));
   return findings;
-}
