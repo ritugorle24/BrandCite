@@ -78,13 +78,28 @@ describe('reviewDraft', () => {
     expect(f?.ai_assisted).toBe(true);
   });
 
-  it('marks low confidence findings as needs_human', async () => {
+  it('changes escalation when the confidence threshold changes', async () => {
+    const { reviewConfig } = await import('../../lib/config.ts');
+
     (callLLM as any).mockResolvedValue({
-      text: '[{"source_id":"R-TEST-01","issue":"low confidence","quote":"secure","severity":"high","suggestion":null,"confidence":0.4}]',
+      text: '[{"source_id":"R-TEST-01","issue":"threshold test","quote":"secure","severity":"high","suggestion":null,"confidence":0.4}]',
     });
-    const results = await reviewDraft(draft);
-    const f = results.find((r) => r.issue === 'low confidence');
-    expect(f?.status).toBe('needs_human');
+
+    // At threshold 0.6, confidence 0.4 must be escalated.
+    (reviewConfig as any).confidenceThreshold = 0.6;
+    const highThresholdResults = await reviewDraft(draft);
+    const highThresholdFinding = highThresholdResults.find(
+      (r) => r.issue === 'threshold test'
+    );
+    expect(highThresholdFinding?.status).toBe('needs_human');
+
+    // At threshold 0.3, confidence 0.4 must remain open.
+    (reviewConfig as any).confidenceThreshold = 0.3;
+    const lowThresholdResults = await reviewDraft(draft);
+    const lowThresholdFinding = lowThresholdResults.find(
+      (r) => r.issue === 'threshold test'
+    );
+    expect(lowThresholdFinding?.status).toBe('open');
   });
 
   it('falls back to exact findings when LLM is unavailable', async () => {

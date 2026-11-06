@@ -6,6 +6,9 @@ import {
   type Term,
 } from './exactChecks.ts';
 import { checkClaims, type ApprovedFact } from './claims.ts';
+import { reviewConfig } from './config.ts';
+
+export type EscalationReason = 'low_confidence' | 'no_source' | 'unmatched_claim';
 
 export interface ReviewFinding extends ExactFinding {
   /**
@@ -14,6 +17,9 @@ export interface ReviewFinding extends ExactFinding {
    * - 'needs_human' when source is missing or confidence low
    */
   status?: 'open' | 'needs_human';
+
+  /** Why this finding was escalated to needs_human. */
+  escalation_reason?: EscalationReason;
 }
 
 /**
@@ -160,10 +166,14 @@ const exactResults = await runExactChecks(draft, terms, rules);
 
 const validRuleIds = new Set(rules.map((r: any) => r.id));
 
-const exactFindings: ReviewFinding[] = exactResults.map((f) => ({
-  ...f,
-  status: validRuleIds.has(f.source_id ?? '') ? 'open' : 'needs_human',
-}));
+const exactFindings: ReviewFinding[] = exactResults.map((f) => {
+  const hasSource = validRuleIds.has(f.source_id ?? '');
+  return {
+    ...f,
+    status: hasSource ? 'open' : 'needs_human',
+    ...(hasSource ? {} : { escalation_reason: 'no_source' as EscalationReason }),
+  };
+});
   // 4. Build prompt and call LLM
   const { system, user } = buildPrompt(draft, shortRules, shortFacts);
 
@@ -215,11 +225,19 @@ const exactFindings: ReviewFinding[] = exactResults.map((f) => ({
   // 5. Validate LLM findings
   const validIds = new Set([...shortRules.map((r) => r.id), ...shortFacts.map((f) => f.id)]);
   const validated = llmFindings.map((f) => {
-    const needsHuman = !validIds.has(f.source_id as string) || (f.confidence ?? 0) < 0.6;
+    const hasValidSource = validIds.has(f.source_id as string);
+    const isLowConfidence = (f.confidence ?? 0) < reviewConfig.confidenceThreshold;
+    const needsHuman = !hasValidSource || isLowConfidence;
+    const reason: EscalationReason | undefined = !hasValidSource
+      ? 'no_source'
+      : isLowConfidence
+        ? 'low_confidence'
+        : undefined;
     return {
       ...f,
       status: needsHuman ? 'needs_human' : 'open',
-      source_id: validIds.has(f.source_id as string) ? f.source_id : null,
+      source_id: hasValidSource ? f.source_id : null,
+      ...(reason ? { escalation_reason: reason } : {}),
     } as ReviewFinding;
   });
 

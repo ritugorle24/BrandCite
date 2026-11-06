@@ -107,6 +107,7 @@ export function checkClaims(
         confidence: 0.85,
         ai_assisted: false,
         status: 'needs_human',
+        escalation_reason: 'unmatched_claim',
       });
       continue;
     }

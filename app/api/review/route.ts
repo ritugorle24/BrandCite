@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { reviewDraft } from '../../../lib/review.ts';
 import { LLMUnavailableError } from '../../../lib/llm.ts';
+import { reviewConfig } from '../../../lib/config.ts';
 
 // ─── Constants ───────────────────────────────────────────────
-const MAX_TEXT_LENGTH = 5000;
+const MAX_TEXT_LENGTH = reviewConfig.maxDraftLength;
 
 // ─── POST /api/review ────────────────────────────────────────
 export async function POST(req: NextRequest) {
