@@ -1,0 +1,32 @@
+BRANDCITE - FUNCTIONAL AND SECURITY VERIFICATION
+Date: 2026-11-06
+
+1. Authentication
+- Signup: PASS
+- Login: PASS
+- Unauthenticated decision request: 401
+
+2. Role-Based Access
+- Admin access: PASS
+- Creator/Manager restricted admin access: 403
+
+3. Draft Lifecycle
+- Create draft: 201
+- Retrieve draft: 200
+- Create version 2: 201
+- Previous version preserved: PASS
+
+4. Finding Decisions
+- Accept finding: 200
+- Reject finding: 200
+- Invalid decision: 400
+- Reviewer ID persisted: PASS
+- Review timestamp persisted: PASS
+
+5. User Isolation
+- Unauthenticated draft access: 401
+- Second creator accessing first creator's draft: 403
+- Second creator modifying first creator's finding: 403
+- Original finding remained accepted: PASS
+
+RESULT: ALL TESTS PERFORMED PASSED

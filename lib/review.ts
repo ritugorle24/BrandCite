@@ -1,6 +1,10 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { callLLM, LLMUnavailableError } from './llm.ts';
-import { runExactChecks, Finding as ExactFinding } from './exactChecks.ts';
+import {
+  runExactChecks,
+  type Finding as ExactFinding,
+  type Term,
+} from './exactChecks.ts';
 
 export interface ReviewFinding extends ExactFinding {
   /**
@@ -16,15 +20,35 @@ export interface ReviewFinding extends ExactFinding {
  * Returns an object with arrays of rules and facts (both contain at least `id` and `category`).
  */
 async function loadApprovedData(supabase: SupabaseClient) {
-  const [{ data: rules, error: rulesErr }, { data: facts, error: factsErr }] = await Promise.all([
-    supabase.from('brand_rules').select('id, category, text').eq('approved', true),
-    supabase.from('approved_facts').select('id, category, fact_text, valid_until').eq('approved', true),
+  const [
+    { data: rules, error: rulesErr },
+    { data: facts, error: factsErr },
+    { data: terms, error: termsErr },
+  ] = await Promise.all([
+    supabase
+      .from('brand_rules')
+      .select('id, category, text')
+      .eq('approved', true),
+
+    supabase
+      .from('approved_facts')
+      .select('id, statement, valid_until')
+      .eq('approved', true),
+
+    supabase
+      .from('terms')
+      .select('id, term, type, replacement, rule_id'),
   ]);
 
   if (rulesErr) throw rulesErr;
   if (factsErr) throw factsErr;
+  if (termsErr) throw termsErr;
 
-  return { rules: rules ?? [], facts: facts ?? [] };
+  return {
+    rules: rules ?? [],
+    facts: facts ?? [],
+    terms: (terms ?? []) as Term[],
+  };
 }
 
 /**
@@ -40,7 +64,8 @@ function shortlist(
 ) {
   const lowered = draft.toLowerCase();
   const scoreItem = (item: any) => {
-    const txt = `${item.text ?? ''} ${item.category ?? ''}`.toLowerCase();
+    // brand_rules use `text` + `category`; approved_facts use `statement` (no category)
+    const txt = `${item.text ?? item.statement ?? ''} ${item.category ?? ''}`.toLowerCase();
     let score = 0;
     const words = txt.split(/\s+/).filter(Boolean);
     for (const w of words) {
@@ -114,14 +139,30 @@ export async function reviewDraft(draft: string): Promise<ReviewFinding[]> {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const { rules, facts } = await loadApprovedData(supabase);
+const { rules, facts, terms } = await loadApprovedData(supabase);
+console.log('[DEBUG] Loaded rules:', rules.length);
+console.log('[DEBUG] Loaded facts:', facts.length);
+console.log('[DEBUG] Loaded terms:', terms.length);
 
-  // 2. Shortlist relevant items
+console.log(
+  '[DEBUG] Relevant terms:',
+  terms.filter((t) =>
+    ['guys', 'nova brew'].includes(t.term.toLowerCase())
+  )
+);
+
+// 2. Shortlist relevant items
   const { rules: shortRules, facts: shortFacts } = shortlist(draft, rules, facts);
 
   // 3. Run exact checks (no terms supplied for now)
-  const exactFindings = await runExactChecks(draft, [], shortRules);
+const exactResults = await runExactChecks(draft, terms, rules);
 
+const validRuleIds = new Set(rules.map((r: any) => r.id));
+
+const exactFindings: ReviewFinding[] = exactResults.map((f) => ({
+  ...f,
+  status: validRuleIds.has(f.source_id ?? '') ? 'open' : 'needs_human',
+}));
   // 4. Build prompt and call LLM
   const { system, user } = buildPrompt(draft, shortRules, shortFacts);
 
@@ -160,7 +201,7 @@ export async function reviewDraft(draft: string): Promise<ReviewFinding[]> {
         issue: 'AI review unavailable, rules-only results',
         quote: '',
         severity: 'info',
-        suggestion: undefined,
+        suggestion: '',
         confidence: 1,
         ai_assisted: false,
       };
@@ -191,3 +232,4 @@ export async function reviewDraft(draft: string): Promise<ReviewFinding[]> {
 
   return Array.from(uniq.values());
 }
+
