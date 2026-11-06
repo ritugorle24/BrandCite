@@ -54,7 +54,8 @@ export async function POST(req: Request) {
     severity: f.severity ?? 'medium',
     suggestion: f.suggestion ?? null,
     confidence: f.confidence ?? 1,
-    status: 'open',
+    status: f.status ?? 'open',
+    escalation_reason: f.escalation_reason ?? null,
     ai_assisted: f.ai_assisted ?? false,
   }));
 
