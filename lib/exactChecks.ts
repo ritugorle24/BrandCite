@@ -1,4 +1,4 @@
-﻿export interface Term {
+export interface Term {
   id: string;
   term: string;
   type: "preferred" | "banned";
@@ -33,6 +33,10 @@ function wordRegex(term: string, caseSensitive = false): RegExp {
   );
 }
 
+function snippet(text: string, start: number, end: number): string {
+  return text.slice(start, end);
+}
+
 export async function runExactChecks(
   text: string,
   terms: Term[],
@@ -40,18 +44,21 @@ export async function runExactChecks(
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
 
-  // 1. Detect banned terms
-  for (const term of terms.filter((t) => t.type === "banned")) {
-    // Preserve correct trademark capitalization.
-    const caseSensitive = term.rule_id === "R-TERM-01";
-    const re = wordRegex(term.term, caseSensitive);
+  // 1. Banned terms
+  const banned = terms.filter((t) => t.type === "banned");
+
+  for (const term of banned) {
+    // Trademark variants must match exact capitalization.
+    const re = wordRegex(term.term);
 
     for (const match of text.matchAll(re)) {
       const start = match.index!;
+      const end = start + match[0].length;
+
       findings.push({
         source_id: term.rule_id,
         issue: "banned term used",
-        quote: text.slice(start, start + match[0].length),
+        quote: snippet(text, start, end),
         severity: "high",
         suggestion: term.replacement ?? "",
         confidence: 1,
@@ -60,31 +67,53 @@ export async function runExactChecks(
     }
   }
 
-  // 2. Preferred terms are approved vocabulary, not violations.
+  // 2. Detect incorrect usage of preferred terms
+  for (const term of terms.filter((t) => t.type === "preferred")) {
+    if (!term.replacement) continue;
 
-  // 3. Detect unsupported absolute claims
-  const claimPatterns = [
-    /(?<![\p{L}\p{N}_])100%(?![\p{L}\p{N}_])/giu,
-    /(?<![\p{L}\p{N}_])guaranteed(?![\p{L}\p{N}_])/giu,
-    /(?<![\p{L}\p{N}_])best(?![\p{L}\p{N}_])/giu,
-    /(?<![\p{L}\p{N}_])fastest(?![\p{L}\p{N}_])/giu,
-    /(?<![\p{L}\p{N}_])risk[-\u2010-\u2015]free(?![\p{L}\p{N}_])/giu,
-    /(?<![\p{L}\p{N}_])always(?![\p{L}\p{N}_])/giu,
-    /(?<![\p{L}\p{N}_])never(?![\p{L}\p{N}_])/giu,
+    const re = wordRegex(term.term);
+
+    for (const match of text.matchAll(re)) {
+      findings.push({
+        source_id: term.rule_id,
+        issue: "non\u2011preferred term used",
+        quote: match[0],
+        severity: "medium",
+        suggestion: term.replacement,
+        confidence: 1,
+        ai_assisted: false,
+      });
+    }
+  }
+  // 3. Unsupported absolute claims
+  const claimWords = [
+    "100%",
+    "guaranteed",
+    "best",
+    "fastest",
+    "risk-free",
+    "risk-free",
+    "always",
+    "never",
   ];
 
   const claimRule = rules.find((r) =>
     r.category.toLowerCase().includes("claim")
   );
 
-  for (const re of claimPatterns) {
+  const claimSourceId = claimRule?.id ?? null;
+
+  for (const word of claimWords) {
+    const re = wordRegex(word);
+
     for (const match of text.matchAll(re)) {
       const start = match.index!;
+      const end = start + match[0].length;
 
       findings.push({
-        source_id: claimRule?.id ?? null,
+        source_id: claimSourceId,
         issue: "unsupported absolute claim",
-        quote: match[0],
+        quote: snippet(text, start, end),
         severity: "high",
         suggestion: "remove or qualify the claim",
         confidence: 1,

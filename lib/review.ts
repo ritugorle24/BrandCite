@@ -5,6 +5,7 @@ import {
   type Finding as ExactFinding,
   type Term,
 } from './exactChecks.ts';
+import { checkClaims, type ApprovedFact } from './claims.ts';
 
 export interface ReviewFinding extends ExactFinding {
   /**
@@ -222,8 +223,11 @@ const exactFindings: ReviewFinding[] = exactResults.map((f) => ({
     } as ReviewFinding;
   });
 
-  // 6. Merge with exact findings and dedupe
-  const allFindings: ReviewFinding[] = [...exactFindings, ...validated];
+  // 6. Claims verification
+  const claimFindings = checkClaims(draft, facts as ApprovedFact[]);
+
+  // 7. Merge all findings and dedupe
+  const allFindings: ReviewFinding[] = [...exactFindings, ...validated, ...claimFindings];
   const uniq = new Map<string, ReviewFinding>();
   for (const f of allFindings) {
     const key = `${f.source_id ?? 'null'}|${f.issue}|${f.quote}`;
