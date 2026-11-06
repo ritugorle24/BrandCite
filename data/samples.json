@@ -1,0 +1,247 @@
+[
+    {
+        "id":  "S-01",
+        "label":  "banned_term_guys",
+        "draft":  "Hey guys, try our NovaBrew Morning Blend today!",
+        "expected_issues":  [
+                                "banned term used"
+                            ],
+        "expected_quotes":  [
+                                "guys"
+                            ],
+        "notes":  "Banned gendered greeting â€” should flag \u0027guys\u0027"
+    },
+    {
+        "id":  "S-02",
+        "label":  "banned_term_novabrew_spacing",
+        "draft":  "Nova Brew is the coffee brand for you. Buy Nova Brew now.",
+        "expected_issues":  [
+                                "banned term used"
+                            ],
+        "expected_quotes":  [
+                                "Nova Brew"
+                            ],
+        "notes":  "Wrong trademark spacing â€” should flag \u0027Nova Brew\u0027 (twice)"
+    },
+    {
+        "id":  "S-03",
+        "label":  "unsupported_claim_best",
+        "draft":  "NovaBrew makes the best coffee in the world. Try it today.",
+        "expected_issues":  [
+                                "unsupported absolute claim"
+                            ],
+        "expected_quotes":  [
+                                "best"
+                            ],
+        "notes":  "Superlative claim without citation"
+    },
+    {
+        "id":  "S-04",
+        "label":  "unsupported_claim_100pct",
+        "draft":  "Our Morning Blend is 100% pure and freshly roasted.",
+        "expected_issues":  [
+                                "unsupported absolute claim"
+                            ],
+        "expected_quotes":  [
+                                "100%"
+                            ],
+        "notes":  "Unverified absolute claim"
+    },
+    {
+        "id":  "S-05",
+        "label":  "health_claim_immunity",
+        "draft":  "NovaBrew boosts immunity and keeps you energized all day.",
+        "expected_issues":  [
+                                "banned term used"
+                            ],
+        "expected_quotes":  [
+                                "boosts immunity"
+                            ],
+        "notes":  "Prohibited health claim â€” banned term \u0027boosts immunity\u0027"
+    },
+    {
+        "id":  "S-06",
+        "label":  "health_claim_focus",
+        "draft":  "Drink NovaBrew Deep Ember daily and improves focus guaranteed.",
+        "expected_issues":  [
+                                "banned term used",
+                                "unsupported absolute claim"
+                            ],
+        "expected_quotes":  [
+                                "improves focus",
+                                "guaranteed"
+                            ],
+        "notes":  "Two violations: banned health phrase + absolute guarantee"
+    },
+    {
+        "id":  "S-07",
+        "label":  "banned_term_number_one",
+        "draft":  "NovaBrew is the number one coffee brand loved by millions.",
+        "expected_issues":  [
+                                "banned term used"
+                            ],
+        "expected_quotes":  [
+                                "number one"
+                            ],
+        "notes":  "Banned superlative without citation"
+    },
+    {
+        "id":  "S-08",
+        "label":  "banned_term_cheap",
+        "draft":  "NovaBrew is cheap and delicious â€” perfect for every morning.",
+        "expected_issues":  [
+                                "banned term used"
+                            ],
+        "expected_quotes":  [
+                                "cheap"
+                            ],
+        "notes":  "Off-brand language â€” \u0027cheap\u0027 is banned"
+    },
+    {
+        "id":  "S-09",
+        "label":  "tone_gendered_greeting",
+        "draft":  "Ladies and gentlemen, we are thrilled to introduce NovaBrew Midnight Reserve.",
+        "expected_issues":  [
+                                "banned term used"
+                            ],
+        "expected_quotes":  [
+                                "ladies and gentlemen"
+                            ],
+        "notes":  "Gendered greeting banned by R-TONE-03"
+    },
+    {
+        "id":  "S-10",
+        "label":  "claim_guaranteed",
+        "draft":  "Every bag is guaranteed to be the freshest you have ever tasted.",
+        "expected_issues":  [
+                                "unsupported absolute claim"
+                            ],
+        "expected_quotes":  [
+                                "guaranteed"
+                            ],
+        "notes":  "Absolute guarantee without backing"
+    },
+    {
+        "id":  "S-11",
+        "label":  "claim_never",
+        "draft":  "NovaBrew will never disappoint. We never compromise on quality.",
+        "expected_issues":  [
+                                "unsupported absolute claim"
+                            ],
+        "expected_quotes":  [
+                                "never"
+                            ],
+        "notes":  "Absolute \u0027never\u0027 claim â€” should surface at least one finding"
+    },
+    {
+        "id":  "S-12",
+        "label":  "claim_always",
+        "draft":  "Our beans always arrive fresh, roasted to perfection.",
+        "expected_issues":  [
+                                "unsupported absolute claim"
+                            ],
+        "expected_quotes":  [
+                                "always"
+                            ],
+        "notes":  "Absolute \u0027always\u0027 claim"
+    },
+    {
+        "id":  "S-13",
+        "label":  "combined_banned_and_claim",
+        "draft":  "Hey guys, NovaBrew is the best and 100% organic. Buy now!",
+        "expected_issues":  [
+                                "banned term used",
+                                "unsupported absolute claim"
+                            ],
+        "expected_quotes":  [
+                                "guys",
+                                "best",
+                                "100%"
+                            ],
+        "notes":  "Multiple violations: gendered greeting, superlative, absolute claim"
+    },
+    {
+        "id":  "S-14",
+        "label":  "worlds_best_banned",
+        "draft":  "Discover the worlds best roast â€” NovaBrew Deep Ember.",
+        "expected_issues":  [
+                                "banned term used"
+                            ],
+        "expected_quotes":  [
+                                "worlds best"
+                            ],
+        "notes":  "Banned superlative phrase \u0027worlds best\u0027"
+    },
+    {
+        "id":  "S-15",
+        "label":  "novabrew_lowercase",
+        "draft":  "Try novabrew today and experience the difference.",
+        "expected_issues":  [
+                                "banned term used"
+                            ],
+        "expected_quotes":  [
+                                "novabrew"
+                            ],
+        "notes":  "Lowercase brand name â€” banned per R-TERM-01"
+    },
+    {
+        "id":  "S-16",
+        "label":  "novabrew_allcaps",
+        "draft":  "NOVABREW brings you premium coffee at your doorstep.",
+        "expected_issues":  [
+                                "banned term used"
+                            ],
+        "expected_quotes":  [
+                                "NOVABREW"
+                            ],
+        "notes":  "All-caps brand name â€” banned per R-TERM-01"
+    },
+    {
+        "id":  "S-17",
+        "label":  "fastest_claim",
+        "draft":  "NovaBrew is the fastest growing coffee brand in the region.",
+        "expected_issues":  [
+                                "unsupported absolute claim"
+                            ],
+        "expected_quotes":  [
+                                "fastest"
+                            ],
+        "notes":  "Unsupported superlative growth claim"
+    },
+    {
+        "id":  "S-18",
+        "label":  "risk_free_claim",
+        "draft":  "Order NovaBrew risk-free â€” if you are not satisfied, we will refund you.",
+        "expected_issues":  [
+                                "unsupported absolute claim"
+                            ],
+        "expected_quotes":  [
+                                "riskâ€‘free"
+                            ],
+        "notes":  "risk-free guarantee claim needs citation"
+    },
+    {
+        "id":  "S-19",
+        "label":  "clean_draft",
+        "draft":  "Experience the bright, velvety notes of NovaBrew Morning Blend. Crafted for coffee lovers who appreciate bold flavour.",
+        "expected_issues":  [
+
+                            ],
+        "expected_quotes":  [
+
+                            ],
+        "notes":  "Fully compliant draft â€” zero findings expected from exact checks"
+    },
+    {
+        "id":  "S-20",
+        "label":  "clean_draft_with_approved_roast",
+        "draft":  "NovaBrew Deep Ember is a smooth, earthy roast with a rich flavour, crafted for coffee lovers who enjoy a bold morning cup.",
+        "expected_issues":  [
+
+                            ],
+        "expected_quotes":  [
+
+                            ],
+        "notes":  "Compliant draft â€” uses approved roast name, approved descriptors, factual origin. Exact checks should find zero issues."
+    }
+]
