@@ -191,7 +191,6 @@ export async function callLLM({
   let primaryError: unknown;
   try {
     const primary = getPrimaryConfig();
-    console.log(`[llm] Trying primary: ${safeLabel(primary)}`);
     const text = await tryProvider(primary, system, user);
     return { text, provider: "primary" };
   } catch (err) {
@@ -205,7 +204,6 @@ export async function callLLM({
   let fallbackError: unknown;
   try {
     const fallback = getFallbackConfig();
-    console.log(`[llm] Trying fallback: ${safeLabel(fallback)}`);
     const text = await tryProvider(fallback, system, user);
     return { text, provider: "fallback" };
   } catch (err) {

@@ -30,7 +30,7 @@ export async function POST(
       body = await req.json();
     } catch {
       return NextResponse.json(
-        { error: 'Request body must be valid JSON.' },
+        { error: 'Request body must be valid JSON.', code: 'INVALID_JSON' },
         { status: 400 }
       );
     }
@@ -40,7 +40,10 @@ export async function POST(
 
     if (!decision || !VALID_DECISIONS.includes(decision as ResolveDecision)) {
       return NextResponse.json(
-        { error: `Decision must be one of: ${VALID_DECISIONS.join(', ')}` },
+        {
+          error: `Decision must be one of: ${VALID_DECISIONS.join(', ')}`,
+          code: 'INVALID_DECISION',
+        },
         { status: 400 }
       );
     }
@@ -53,7 +56,10 @@ export async function POST(
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthenticated', code: 'UNAUTHENTICATED' },
+        { status: 401 }
+      );
     }
 
     // 3. Role check — managers and admins only
@@ -65,14 +71,14 @@ export async function POST(
 
     if (profileError || !profile) {
       return NextResponse.json(
-        { error: 'Unable to determine user role' },
+        { error: 'Unable to determine user role', code: 'ROLE_UNKNOWN' },
         { status: 403 }
       );
     }
 
     if (!['manager', 'admin'].includes(profile.role)) {
       return NextResponse.json(
-        { error: 'Forbidden: managers and admins only' },
+        { error: 'Forbidden: managers and admins only', code: 'FORBIDDEN' },
         { status: 403 }
       );
     }
@@ -86,14 +92,17 @@ export async function POST(
 
     if (findingError || !finding) {
       return NextResponse.json(
-        { error: 'Finding not found' },
+        { error: 'Finding not found', code: 'FINDING_NOT_FOUND' },
         { status: 404 }
       );
     }
 
     if (finding.status !== 'needs_human') {
       return NextResponse.json(
-        { error: `Finding is not awaiting human review (current status: ${finding.status})` },
+        {
+          error: `Finding is not awaiting human review (current status: ${finding.status})`,
+          code: 'INVALID_TRANSITION',
+        },
         { status: 409 }
       );
     }
@@ -116,7 +125,7 @@ export async function POST(
     if (updateError) {
       console.error('[api/findings/resolve] Update error:', updateError);
       return NextResponse.json(
-        { error: updateError.message },
+        { error: 'Failed to update finding status', code: 'DATABASE_ERROR' },
         { status: 500 }
       );
     }
@@ -134,10 +143,10 @@ export async function POST(
       { message: `Finding ${decision} successfully`, finding: updated },
       { status: 200 }
     );
-  } catch (err) {
+  } catch (err: any) {
     console.error('[api/findings/resolve] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }

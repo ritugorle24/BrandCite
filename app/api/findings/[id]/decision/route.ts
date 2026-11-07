@@ -8,11 +8,25 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { decision } = await req.json();
 
-    if (!['accepted', 'rejected'].includes(decision)) {
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
       return NextResponse.json(
-        { error: 'Decision must be accepted or rejected' },
+        { error: 'Request body must be valid JSON.', code: 'INVALID_JSON' },
+        { status: 400 }
+      );
+    }
+
+    const { decision } = body || {};
+
+    if (!decision || !['accepted', 'rejected'].includes(decision)) {
+      return NextResponse.json(
+        {
+          error: 'Decision must be accepted or rejected',
+          code: 'INVALID_DECISION',
+        },
         { status: 400 }
       );
     }
@@ -26,7 +40,7 @@ export async function POST(
 
     if (authError || !user) {
       return NextResponse.json(
-        { error: 'Unauthenticated' },
+        { error: 'Unauthenticated', code: 'UNAUTHENTICATED' },
         { status: 401 }
       );
     }
@@ -40,7 +54,7 @@ export async function POST(
 
     if (findingError || !finding) {
       return NextResponse.json(
-        { error: 'Finding not found' },
+        { error: 'Finding not found', code: 'FINDING_NOT_FOUND' },
         { status: 404 }
       );
     }
@@ -54,14 +68,14 @@ export async function POST(
 
     if (draftError || !draft) {
       return NextResponse.json(
-        { error: 'Draft not found' },
+        { error: 'Draft not found', code: 'DRAFT_NOT_FOUND' },
         { status: 404 }
       );
     }
 
     if (draft.author_id !== user.id) {
       return NextResponse.json(
-        { error: 'Forbidden' },
+        { error: 'Forbidden: only draft author can record finding decision', code: 'FORBIDDEN' },
         { status: 403 }
       );
     }
@@ -79,19 +93,24 @@ export async function POST(
       .single();
 
     if (error) {
+      console.error('[api/findings/decision] Update error:', error);
       return NextResponse.json(
-        { error: error.message },
+        { error: 'Failed to record decision', code: 'DATABASE_ERROR' },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({
-      message: 'Decision saved successfully',
-      finding: data,
-    });
-  } catch {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        message: 'Decision saved successfully',
+        finding: data,
+      },
+      { status: 200 }
+    );
+  } catch (err: any) {
+    console.error('[api/findings/decision] Error:', err);
+    return NextResponse.json(
+      { error: 'Internal server error', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }

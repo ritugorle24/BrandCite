@@ -7,16 +7,6 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
  *
  * Returns all findings with status = 'needs_human', joined with their
  * parent draft title.  Only accessible to managers and admins.
- *
- * Response shape:
- * {
- *   queue: [
- *     {
- *       id, draft_id, draft_title, quote, issue, severity, confidence,
- *       escalation_reason, source_id, suggestion, created_at
- *     }, …
- *   ]
- * }
  */
 export async function GET() {
   try {
@@ -28,7 +18,10 @@ export async function GET() {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthenticated', code: 'UNAUTHENTICATED' },
+        { status: 401 }
+      );
     }
 
     // 2. Role check — managers and admins only
@@ -40,14 +33,14 @@ export async function GET() {
 
     if (profileError || !profile) {
       return NextResponse.json(
-        { error: 'Unable to determine user role' },
+        { error: 'Unable to determine user role', code: 'ROLE_UNKNOWN' },
         { status: 403 }
       );
     }
 
     if (!['manager', 'admin'].includes(profile.role)) {
       return NextResponse.json(
-        { error: 'Forbidden: managers and admins only' },
+        { error: 'Forbidden: managers and admins only', code: 'FORBIDDEN' },
         { status: 403 }
       );
     }
@@ -79,7 +72,7 @@ export async function GET() {
     if (findingsError) {
       console.error('[api/review-queue] Query error:', findingsError);
       return NextResponse.json(
-        { error: 'Failed to fetch review queue' },
+        { error: 'Failed to fetch review queue', code: 'DATABASE_ERROR' },
         { status: 500 }
       );
     }
@@ -102,10 +95,10 @@ export async function GET() {
     }));
 
     return NextResponse.json({ queue }, { status: 200 });
-  } catch (err) {
+  } catch (err: any) {
     console.error('[api/review-queue] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }

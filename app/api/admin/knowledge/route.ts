@@ -14,7 +14,7 @@ async function authenticateAdmin() {
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    return { error: 'Unauthenticated', status: 401, user: null };
+    return { error: 'Unauthenticated', code: 'UNAUTHENTICATED', status: 401, user: null };
   }
 
   const { data: profile, error: profileError } = await supabaseAdmin
@@ -24,14 +24,14 @@ async function authenticateAdmin() {
     .single();
 
   if (profileError || !profile) {
-    return { error: 'Unable to determine user role', status: 403, user: null };
+    return { error: 'Unable to determine user role', code: 'ROLE_UNKNOWN', status: 403, user: null };
   }
 
   if (profile.role !== 'admin') {
-    return { error: 'Forbidden: admin access required', status: 403, user: null };
+    return { error: 'Forbidden: admin access required', code: 'FORBIDDEN', status: 403, user: null };
   }
 
-  return { error: null, status: 200, user };
+  return { error: null, code: null, status: 200, user };
 }
 
 /**
@@ -41,7 +41,7 @@ async function authenticateAdmin() {
 export async function GET() {
   const auth = await authenticateAdmin();
   if (auth.error) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return NextResponse.json({ error: auth.error, code: auth.code }, { status: auth.status });
   }
 
   try {
@@ -89,7 +89,7 @@ export async function GET() {
   } catch (err: any) {
     console.error('[api/admin/knowledge] GET error:', err);
     return NextResponse.json(
-      { error: err.message || 'Failed to fetch knowledge base items' },
+      { error: 'Failed to fetch knowledge base items', code: 'DATABASE_ERROR' },
       { status: 500 }
     );
   }
@@ -102,16 +102,25 @@ export async function GET() {
 export async function POST(req: Request) {
   const auth = await authenticateAdmin();
   if (auth.error) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return NextResponse.json({ error: auth.error, code: auth.code }, { status: auth.status });
   }
 
   try {
-    const body = await req.json();
-    const { entity, data } = body;
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be valid JSON.', code: 'INVALID_JSON' },
+        { status: 400 }
+      );
+    }
+
+    const { entity, data } = body || {};
 
     if (!entity || !data) {
       return NextResponse.json(
-        { error: 'Missing entity type or data payload' },
+        { error: 'Missing entity type or data payload', code: 'MISSING_PAYLOAD' },
         { status: 400 }
       );
     }
@@ -119,7 +128,7 @@ export async function POST(req: Request) {
     if (entity === 'rule') {
       if (!data.id || !data.category || !data.text) {
         return NextResponse.json(
-          { error: 'Missing required rule fields (id, category, text)' },
+          { error: 'Missing required rule fields (id, category, text)', code: 'MISSING_FIELDS' },
           { status: 400 }
         );
       }
@@ -137,14 +146,20 @@ export async function POST(req: Request) {
         .select('*')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[api/admin/knowledge] Create rule error:', error);
+        return NextResponse.json(
+          { error: 'Failed to create brand rule', code: 'DATABASE_ERROR' },
+          { status: 500 }
+        );
+      }
       return NextResponse.json({ item: created }, { status: 201 });
     }
 
     if (entity === 'fact') {
       if (!data.id || !data.statement) {
         return NextResponse.json(
-          { error: 'Missing required fact fields (id, statement)' },
+          { error: 'Missing required fact fields (id, statement)', code: 'MISSING_FIELDS' },
           { status: 400 }
         );
       }
@@ -161,14 +176,20 @@ export async function POST(req: Request) {
         .select('*')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[api/admin/knowledge] Create fact error:', error);
+        return NextResponse.json(
+          { error: 'Failed to create approved fact', code: 'DATABASE_ERROR' },
+          { status: 500 }
+        );
+      }
       return NextResponse.json({ item: created }, { status: 201 });
     }
 
     if (entity === 'term') {
       if (!data.term || !data.type) {
         return NextResponse.json(
-          { error: 'Missing required term fields (term, type)' },
+          { error: 'Missing required term fields (term, type)', code: 'MISSING_FIELDS' },
           { status: 400 }
         );
       }
@@ -186,7 +207,13 @@ export async function POST(req: Request) {
         .select('*')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[api/admin/knowledge] Create term error:', error);
+        return NextResponse.json(
+          { error: 'Failed to create term', code: 'DATABASE_ERROR' },
+          { status: 500 }
+        );
+      }
 
       const isApproved = data.approved !== undefined ? Boolean(data.approved) : true;
       if (!isApproved) {
@@ -199,11 +226,14 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ error: 'Invalid entity type' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Invalid entity type', code: 'INVALID_ENTITY' },
+      { status: 400 }
+    );
   } catch (err: any) {
     console.error('[api/admin/knowledge] POST error:', err);
     return NextResponse.json(
-      { error: err.message || 'Failed to create knowledge item' },
+      { error: 'An unexpected internal error occurred.', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }
@@ -216,16 +246,25 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const auth = await authenticateAdmin();
   if (auth.error) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return NextResponse.json({ error: auth.error, code: auth.code }, { status: auth.status });
   }
 
   try {
-    const body = await req.json();
-    const { entity, id, updates } = body;
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { error: 'Request body must be valid JSON.', code: 'INVALID_JSON' },
+        { status: 400 }
+      );
+    }
+
+    const { entity, id, updates } = body || {};
 
     if (!entity || !id || !updates) {
       return NextResponse.json(
-        { error: 'Missing entity, id, or updates payload' },
+        { error: 'Missing entity, id, or updates payload', code: 'MISSING_PAYLOAD' },
         { status: 400 }
       );
     }
@@ -244,7 +283,13 @@ export async function PATCH(req: Request) {
         .select('*')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[api/admin/knowledge] Update rule error:', error);
+        return NextResponse.json(
+          { error: 'Failed to update brand rule', code: 'DATABASE_ERROR' },
+          { status: 500 }
+        );
+      }
       return NextResponse.json({ item: updated }, { status: 200 });
     }
 
@@ -264,7 +309,13 @@ export async function PATCH(req: Request) {
         .select('*')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[api/admin/knowledge] Update fact error:', error);
+        return NextResponse.json(
+          { error: 'Failed to update approved fact', code: 'DATABASE_ERROR' },
+          { status: 500 }
+        );
+      }
       return NextResponse.json({ item: updated }, { status: 200 });
     }
 
@@ -284,7 +335,13 @@ export async function PATCH(req: Request) {
           .select('*')
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('[api/admin/knowledge] Update term error:', error);
+          return NextResponse.json(
+            { error: 'Failed to update term', code: 'DATABASE_ERROR' },
+            { status: 500 }
+          );
+        }
         updatedTerm = data;
       } else {
         const { data, error } = await supabaseAdmin
@@ -293,7 +350,12 @@ export async function PATCH(req: Request) {
           .eq('id', id)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          return NextResponse.json(
+            { error: 'Term not found', code: 'TERM_NOT_FOUND' },
+            { status: 404 }
+          );
+        }
         updatedTerm = data;
       }
 
@@ -312,13 +374,15 @@ export async function PATCH(req: Request) {
       );
     }
 
-    return NextResponse.json({ error: 'Invalid entity type' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Invalid entity type', code: 'INVALID_ENTITY' },
+      { status: 400 }
+    );
   } catch (err: any) {
     console.error('[api/admin/knowledge] PATCH error:', err);
     return NextResponse.json(
-      { error: err.message || 'Failed to update knowledge item' },
+      { error: 'An unexpected internal error occurred.', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }
 }
-

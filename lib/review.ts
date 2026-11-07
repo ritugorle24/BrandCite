@@ -160,17 +160,7 @@ export async function reviewDraft(draft: string): Promise<ReviewFinding[]> {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-const { rules, facts, terms } = await loadApprovedData(supabase);
-console.log('[DEBUG] Loaded rules:', rules.length);
-console.log('[DEBUG] Loaded facts:', facts.length);
-console.log('[DEBUG] Loaded terms:', terms.length);
-
-console.log(
-  '[DEBUG] Relevant terms:',
-  terms.filter((t) =>
-    ['guys', 'nova brew'].includes(t.term.toLowerCase())
-  )
-);
+  const { rules, facts, terms } = await loadApprovedData(supabase);
 
 // 2. Shortlist relevant items
   const { rules: shortRules, facts: shortFacts } = shortlist(draft, rules, facts);
