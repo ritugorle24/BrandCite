@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 interface DraftSummary {
   id: string;
   title: string | null;
+  status?: string;
+  current_version?: number;
   created_at: string;
 }
 
@@ -61,6 +63,25 @@ export default function DraftsListPage() {
     }
   };
 
+  const getStatusBadge = (status?: string) => {
+    const s = (status || "draft").toLowerCase();
+    switch (s) {
+      case "approved":
+        return "bg-emerald-100 text-emerald-800 border-emerald-300";
+      case "in_review":
+        return "bg-amber-100 text-amber-800 border-amber-300";
+      case "changes_requested":
+        return "bg-rose-100 text-rose-800 border-rose-300";
+      default:
+        return "bg-slate-100 text-slate-700 border-slate-300";
+    }
+  };
+
+  const formatStatus = (status?: string) => {
+    const s = (status || "draft").replace("_", " ");
+    return s.toUpperCase();
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Top Navigation */}
@@ -77,6 +98,12 @@ export default function DraftsListPage() {
           </Link>
 
           <nav aria-label="Main Navigation" className="flex items-center gap-3">
+            <Link
+              href="/approvals"
+              className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium text-sm transition-colors"
+            >
+              Approval Queue
+            </Link>
             <Link
               href="/drafts/new"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm shadow-sm transition-colors"
@@ -181,10 +208,20 @@ export default function DraftsListPage() {
                   >
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <h2 className="text-base font-semibold text-slate-900 group-hover:text-indigo-600">
-                          {draft.title || "Untitled Draft"}
-                        </h2>
-                        <p className="text-xs text-slate-400 mt-1">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h2 className="text-base font-semibold text-slate-900 group-hover:text-indigo-600">
+                            {draft.title || "Untitled Draft"}
+                          </h2>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase border ${getStatusBadge(
+                              draft.status
+                            )}`}
+                          >
+                            {formatStatus(draft.status)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1.5">
+                          {draft.current_version ? `Version ${draft.current_version} • ` : ""}
                           Created {formattedDate}
                         </p>
                       </div>

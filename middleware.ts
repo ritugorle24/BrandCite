@@ -1,40 +1,64 @@
-// middleware.ts
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { supabase } from '@/lib/supabase';
+﻿import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
-// Paths that do NOT require authentication
 const PUBLIC_PATHS = [
-  '/',
-  '/login',
-  '/signup',
-  '/api/auth/login',
-  '/api/auth/signup',
-  '/api/auth/logout',
+  "/",
+  "/login",
+  "/signup",
+  "/api/auth/login",
+  "/api/auth/signup",
+  "/api/auth/logout",
 ];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Allow public paths
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
-  }
+  const isPublic = PUBLIC_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(path + "/")
+  );
 
-  // Get user from Supabase auth cookie
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    const loginUrl = new URL('/login', req.url);
-    loginUrl.searchParams.set('redirect', pathname);
+  let response = NextResponse.next({ request: req });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => {
+            req.cookies.set(name, value);
+          });
+
+          response = NextResponse.next({ request: req });
+
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user && !isPublic) {
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Attach user id as a header for downstream API routes (optional)
-  const resp = NextResponse.next();
-  resp.headers.set('x-user-id', user.id);
-  return resp;
+  if (user) {
+    response.headers.set("x-user-id", user.id);
+  }
+
+  return response;
 }
 
 export const config = {
-  matcher: '/((?!api\/auth\/).*)', // apply to all routes except auth API
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

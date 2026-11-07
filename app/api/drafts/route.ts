@@ -3,11 +3,49 @@ import { createSupabaseServerClient } from '@/lib/supabaseServer';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { reviewDraft } from '@/lib/review';
 
-/**
- * POST /api/drafts
- * Body: { title: string, content: string }
- * Creates a draft, version 1, runs reviewDraft and stores findings.
- */
+export async function GET(req: Request) {
+  // Auth
+  const supabase = await createSupabaseServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
+  }
+
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const isStaff = profile && ['manager', 'admin'].includes(profile.role);
+  const url = new URL(req.url);
+  const statusParam = url.searchParams.get('status');
+  const scopeParam = url.searchParams.get('scope');
+
+  let query = supabaseAdmin
+    .from('drafts')
+    .select('id, title, status, current_version, author_id, created_at');
+
+  if (isStaff && statusParam) {
+    query = query.eq('status', statusParam);
+  } else if (isStaff && scopeParam === 'all') {
+    // all drafts for staff
+  } else {
+    query = query.eq('author_id', user.id);
+  }
+
+  const { data: drafts, error: draftsError } = await query.order('created_at', { ascending: false });
+
+  if (draftsError) {
+    console.error('[api/drafts] List error:', draftsError);
+    return NextResponse.json({ error: 'Failed to fetch drafts' }, { status: 500 });
+  }
+
+  return NextResponse.json({ drafts }, { status: 200 });
+}
+
+// Existing POST endpoint follows
+
 export async function POST(req: Request) {
   const { title, content } = await req.json();
   if (!title || !content) {

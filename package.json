@@ -9,7 +9,8 @@
     "test": "vitest",
     "test:watch": "vitest",
     "test:exact": "vitest run lib/__tests__/exactChecks.test.ts",
-    "run-samples": "npx ts-node scripts/run-samples.ts"
+    "run-samples": "npx ts-node scripts/run-samples.ts",
+    "seed-decisions": "npx ts-node scripts/seed-decisions.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

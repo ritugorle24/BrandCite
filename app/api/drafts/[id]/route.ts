@@ -24,12 +24,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (draftErr) {
     return NextResponse.json({ error: draftErr.message }, { status: draftErr.code === 'PGRST116' ? 404 : 500 });
   }
-if (draft.author_id !== user.id) {
-  return NextResponse.json(
-    { error: 'Forbidden' },
-    { status: 403 }
-  );
-}
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const isStaff = profile && ['manager', 'admin'].includes(profile.role);
+
+  if (draft.author_id !== user.id && !isStaff) {
+    return NextResponse.json(
+      { error: 'Forbidden' },
+      { status: 403 }
+    );
+  }
 
   // Fetch all versions for this draft
   const { data: versions, error: versionsErr } = await supabaseAdmin

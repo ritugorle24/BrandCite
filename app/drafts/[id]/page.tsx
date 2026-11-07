@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { getSourceInfo } from "@/lib/sources";
+import { computeSimpleDiff, DiffSummary } from "@/lib/diff";
 
 interface Finding {
   id: string;
@@ -27,10 +28,18 @@ interface DraftVersion {
   created_at: string;
 }
 
+interface CommentItem {
+  id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  parent_id: string | null;
+}
+
 interface Draft {
   id: string;
   title: string | null;
-  status: string;
+  status: "draft" | "in_review" | "changes_requested" | "approved" | string;
   current_version: number;
   author_id: string;
   created_at: string;
@@ -43,14 +52,31 @@ export default function DraftDetailPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [versions, setVersions] = useState<DraftVersion[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [comments, setComments] = useState<CommentItem[]>([]);
   const [content, setContent] = useState("");
   const [initialContent, setInitialContent] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Workflow & form states
+  const [submittingForApproval, setSubmittingForApproval] = useState(false);
+  const [approvingDraft, setApprovingDraft] = useState(false);
+  const [managerNote, setManagerNote] = useState("");
   const [savingVersion, setSavingVersion] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  // View modes: highlighted draft, editor, version diff history, comments
+  const [activeTab, setActiveTab] = useState<"highlighted" | "editor" | "diff" | "comments">("highlighted");
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"highlighted" | "editor">("highlighted");
+
+  // Diff comparison selection
+  const [diffBaseVersionNo, setDiffBaseVersionNo] = useState<number>(1);
+  const [diffTargetVersionNo, setDiffTargetVersionNo] = useState<number>(1);
+
+  // Comment submission state
+  const [newCommentBody, setNewCommentBody] = useState("");
+  const [replyParentId, setReplyParentId] = useState<string | null>(null);
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
@@ -77,43 +103,127 @@ export default function DraftDetailPage() {
 
       const data = await res.json();
       setDraft(data.draft);
-      setVersions(data.versions ?? []);
+      const vers: DraftVersion[] = data.versions ?? [];
+      setVersions(vers);
+
+      // Default diff base to previous version, target to latest
+      if (vers.length > 1) {
+        setDiffBaseVersionNo(vers[vers.length - 2].version_no);
+        setDiffTargetVersionNo(vers[vers.length - 1].version_no);
+      } else if (vers.length === 1) {
+        setDiffBaseVersionNo(vers[0].version_no);
+        setDiffTargetVersionNo(vers[0].version_no);
+      }
 
       // Current version content
       const currentVer =
-        (data.versions ?? []).find(
-          (v: DraftVersion) => v.version_no === data.draft?.current_version
-        ) || data.versions?.[data.versions.length - 1];
+        vers.find((v) => v.version_no === data.draft?.current_version) ||
+        vers[vers.length - 1];
 
       const currentContent = currentVer?.content ?? "";
       setContent(currentContent);
       setInitialContent(currentContent);
       setFindings(data.findings ?? []);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "An unexpected error occurred."
-      );
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
   };
 
+  // Fetch comments thread
+  const fetchComments = async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/drafts/${id}/comments`, {
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setComments(data.comments ?? []);
+      }
+    } catch {
+      // Non-blocking for comments
+    }
+  };
+
   useEffect(() => {
     fetchDraftData();
+    fetchComments();
   }, [id]);
 
+  // Submit draft for approval (creator action)
+  const handleSubmitForApproval = async () => {
+    if (!draft) return;
+    setSubmittingForApproval(true);
+    setActionMessage(null);
+
+    try {
+      const res = await fetch(`/api/drafts/${draft.id}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to submit draft (${res.status})`);
+      }
+
+      setDraft((prev) => (prev ? { ...prev, status: "in_review" } : null));
+      setActionMessage("Draft successfully submitted for approval! Status changed to 'In Review'.");
+    } catch (err) {
+      alert(`Error submitting for approval: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setSubmittingForApproval(false);
+    }
+  };
+
+  // Manager Approval Decision
+  const handleManagerDecision = async (decision: "approved" | "changes_requested") => {
+    if (!draft) return;
+    setApprovingDraft(true);
+    setActionMessage(null);
+
+    try {
+      const res = await fetch(`/api/drafts/${draft.id}/approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, note: managerNote }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to ${decision} draft`);
+      }
+
+      setDraft((prev) => (prev ? { ...prev, status: decision } : null));
+      setActionMessage(
+        decision === "approved"
+          ? "Draft has been APPROVED."
+          : "Changes requested from author."
+      );
+      setManagerNote("");
+    } catch (err) {
+      alert(`Error processing approval decision: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setApprovingDraft(false);
+    }
+  };
+
   // Handle Accept/Reject decision on a finding
-  const handleDecision = async (findingId: string, decision: "accepted" | "rejected") => {
+  const handleFindingDecision = async (findingId: string, decision: "accepted" | "rejected") => {
     setActionMessage(null);
     try {
-      // First try /api/findings/:id/decision
       let res = await fetch(`/api/findings/${findingId}/decision`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision }),
       });
 
-      // If that route is not allowed or failed because it's a manager resolve
+      // If that route is not allowed or failed because it's a manager resolving needs_human
       if (!res.ok && res.status === 403) {
         const resolveDecision = decision === "accepted" ? "confirmed" : "dismissed";
         res = await fetch(`/api/findings/${findingId}/resolve`, {
@@ -128,7 +238,6 @@ export default function DraftDetailPage() {
         throw new Error(data.error || `Action failed with status ${res.status}`);
       }
 
-      // Update local state
       setFindings((prev) =>
         prev.map((f) => (f.id === findingId ? { ...f, status: decision } : f))
       );
@@ -197,13 +306,44 @@ export default function DraftDetailPage() {
         throw new Error(data.error || `Failed to save new version (HTTP ${res.status})`);
       }
 
-      // Refresh draft data
       await fetchDraftData();
       setActionMessage("Saved new version and completed automated review!");
     } catch (err) {
       alert(`Error saving version: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setSavingVersion(false);
+    }
+  };
+
+  // Post a new comment
+  const handlePostComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!draft || !newCommentBody.trim()) return;
+
+    setSubmittingComment(true);
+    try {
+      const res = await fetch(`/api/drafts/${draft.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          body: newCommentBody.trim(),
+          parentId: replyParentId,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to post comment");
+      }
+
+      setNewCommentBody("");
+      setReplyParentId(null);
+      await fetchComments();
+      setActionMessage("Comment posted successfully.");
+    } catch (err) {
+      alert(`Error posting comment: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -216,11 +356,17 @@ export default function DraftDetailPage() {
     );
   }, [findings]);
 
+  // Compute version diff between selected versions
+  const diffResult: DiffSummary = useMemo(() => {
+    const base = versions.find((v) => v.version_no === diffBaseVersionNo)?.content ?? "";
+    const target = versions.find((v) => v.version_no === diffTargetVersionNo)?.content ?? "";
+    return computeSimpleDiff(base, target);
+  }, [versions, diffBaseVersionNo, diffTargetVersionNo]);
+
   // Highlight matches in draft content
   const renderedHighlightedDraft = useMemo(() => {
     if (!content) return <span className="text-slate-400 italic">No content</span>;
 
-    // Filter findings that have quotes
     const activeFindings = findings.filter(
       (f) => f.quote && f.quote.trim().length > 0 && content.includes(f.quote)
     );
@@ -229,7 +375,6 @@ export default function DraftDetailPage() {
       return <span>{content}</span>;
     }
 
-    // Build segments
     interface Segment {
       start: number;
       end: number;
@@ -251,18 +396,15 @@ export default function DraftDetailPage() {
       }
     });
 
-    // Sort segments by start index
     segments.sort((a, b) => a.start - b.start);
 
-    // Non-overlapping segments
     const elements: React.ReactNode[] = [];
     let cursor = 0;
 
     for (let i = 0; i < segments.length; i++) {
       const seg = segments[i];
-      if (seg.start < cursor) continue; // Skip overlaps for simplicity
+      if (seg.start < cursor) continue;
 
-      // Text before mark
       if (seg.start > cursor) {
         elements.push(content.slice(cursor, seg.start));
       }
@@ -305,13 +447,10 @@ export default function DraftDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
-        <div
-          role="status"
-          className="bg-white rounded-xl border border-slate-200 p-8 text-center max-w-sm w-full shadow-sm"
-        >
+        <div role="status" className="bg-white rounded-xl border border-slate-200 p-8 text-center max-w-sm w-full shadow-sm">
           <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <h2 className="text-slate-800 font-semibold text-base mb-1">Loading Draft</h2>
-          <p className="text-slate-500 text-sm">Fetching draft copy, version history and review findings...</p>
+          <p className="text-slate-500 text-sm">Fetching copy, versions, comments, and review findings...</p>
         </div>
       </div>
     );
@@ -321,15 +460,12 @@ export default function DraftDetailPage() {
   if (error || !draft) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
-        <div
-          role="alert"
-          className="bg-white rounded-xl border border-rose-200 p-8 text-center max-w-md w-full shadow-sm"
-        >
+        <div role="alert" className="bg-white rounded-xl border border-rose-200 p-8 text-center max-w-md w-full shadow-sm">
           <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xl mx-auto mb-3">
             !
           </div>
           <h2 className="text-slate-900 font-bold text-lg mb-2">Error Loading Draft</h2>
-          <p className="text-rose-700 text-sm mb-6">{error || "Draft not found or you do not have permission to view it."}</p>
+          <p className="text-rose-700 text-sm mb-6">{error || "Draft not found."}</p>
           <Link
             href="/drafts"
             className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
@@ -343,44 +479,139 @@ export default function DraftDetailPage() {
 
   const isContentDirty = content !== initialContent;
 
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case "approved":
+        return "bg-emerald-100 text-emerald-800 border-emerald-300";
+      case "in_review":
+        return "bg-amber-100 text-amber-800 border-amber-300";
+      case "changes_requested":
+        return "bg-rose-100 text-rose-800 border-rose-300";
+      default:
+        return "bg-slate-100 text-slate-700 border-slate-300";
+    }
+  };
+
+  const formatStatus = (status: string) => {
+    return status.replace("_", " ").toUpperCase();
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Top Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 min-h-16 py-2 sm:py-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div className="min-w-0 flex items-center gap-2 sm:gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <Link
               href="/drafts"
-              className="flex items-center gap-2 text-slate-900 font-bold text-base hover:text-indigo-600 transition-colors shrink-0"
+              className="flex items-center gap-2 text-slate-900 font-bold text-base hover:text-indigo-600 transition-colors"
             >
-              <span className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center text-white text-xs">B</span>
+              <span className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center text-white text-xs">
+                B
+              </span>
               <span>BrandCite</span>
             </Link>
             <span className="text-slate-300 font-light" aria-hidden="true">/</span>
-            <span className="text-sm font-semibold text-slate-800 truncate min-w-0 flex-1 max-w-[120px] sm:max-w-xs">
+            <span className="text-sm font-semibold text-slate-800 truncate max-w-[200px] sm:max-w-xs">
               {draft.title || "Untitled Draft"}
-            </span>
-            <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold uppercase bg-slate-100 text-slate-700 border border-slate-200">
-              v{draft.current_version} &bull; {draft.status}
             </span>
           </div>
 
-          <div className="flex items-center gap-3 self-end sm:self-auto">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/approvals"
+              className="text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 transition-colors"
+            >
+              Approval Hub
+            </Link>
             <Link
               href="/drafts"
               className="text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 transition-colors"
             >
-              &larr; All Drafts
-            </Link>
-            <Link
-              href="/drafts/new"
-              className="text-xs sm:text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition-colors shadow-sm"
-            >
-              + New Draft
+              All Drafts
             </Link>
           </div>
         </div>
       </header>
+
+      {/* Draft Status Workflow Bar */}
+      <aside aria-label="Draft workflow status" className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-semibold uppercase text-slate-500">Draft Status:</span>
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase border ${getStatusBadgeStyle(
+                draft.status
+              )}`}
+            >
+              {formatStatus(draft.status)}
+            </span>
+            <span className="text-xs text-slate-500">
+              Version <strong>v{draft.current_version}</strong> ({versions.length} total versions)
+            </span>
+
+            {draft.status === "in_review" && (
+              <span className="text-xs text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
+                Awaiting Manager Decision
+              </span>
+            )}
+            {draft.status === "changes_requested" && (
+              <span className="text-xs text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded border border-rose-200">
+                Changes Requested by Reviewer
+              </span>
+            )}
+            {draft.status === "approved" && (
+              <span className="text-xs text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                Approved for Publication
+              </span>
+            )}
+          </div>
+
+          {/* Workflow Action Buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Submit for Approval button */}
+            {["draft", "changes_requested"].includes(draft.status) && (
+              <button
+                type="button"
+                disabled={submittingForApproval}
+                onClick={handleSubmitForApproval}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-sm transition-colors disabled:opacity-60"
+              >
+                {submittingForApproval ? "Submitting..." : "Submit for Approval &rarr;"}
+              </button>
+            )}
+
+            {/* Manager Decisions (shown when in_review) */}
+            {draft.status === "in_review" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={managerNote}
+                  onChange={(e) => setManagerNote(e.target.value)}
+                  placeholder="Optional review note..."
+                  className="px-2.5 py-1 text-xs border border-slate-300 rounded-lg w-44 placeholder:text-slate-400 focus:ring-1 focus:ring-indigo-600"
+                />
+                <button
+                  type="button"
+                  disabled={approvingDraft}
+                  onClick={() => handleManagerDecision("approved")}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors shadow-xs disabled:opacity-60"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  disabled={approvingDraft}
+                  onClick={() => handleManagerDecision("changes_requested")}
+                  className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-semibold text-xs transition-colors disabled:opacity-60"
+                >
+                  Request Changes
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
 
       {/* Rules-Only Notice Banner */}
       {rulesOnlyNotice && (
@@ -401,21 +632,28 @@ export default function DraftDetailPage() {
         <aside
           role="status"
           aria-live="polite"
-          className="bg-emerald-50 border-b border-emerald-200 px-4 py-2 text-center text-emerald-800 text-xs sm:text-sm font-medium"
+          className="bg-emerald-50 border-b border-emerald-200 px-4 py-2 text-center text-emerald-800 text-xs sm:text-sm font-medium flex items-center justify-center gap-2"
         >
-          {actionMessage}
+          <span>{actionMessage}</span>
+          <button
+            onClick={() => setActionMessage(null)}
+            className="text-emerald-700 hover:text-emerald-900 font-bold ml-2"
+          >
+            &times;
+          </button>
         </aside>
       )}
 
       {/* Main Two-Column Layout */}
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 flex-1 flex flex-col lg:flex-row gap-6">
-        {/* LEFT COLUMN: Text Editor & Highlighted Preview */}
+        {/* LEFT COLUMN: Editor, Highlighted Review, Version Diff History & Comments */}
         <section
-          aria-label="Draft text editor and preview"
+          aria-label="Draft content and views"
           className="w-full lg:w-7/12 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
         >
-          <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+          {/* Sub Navigation Tabs */}
+          <div className="p-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => setActiveTab("highlighted")}
@@ -438,9 +676,31 @@ export default function DraftDetailPage() {
               >
                 Text Editor {isContentDirty && <span className="text-amber-600">&bull;</span>}
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("diff")}
+                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
+                  activeTab === "diff"
+                    ? "bg-white text-indigo-700 shadow-sm border border-slate-200"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Version Diff ({versions.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("comments")}
+                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
+                  activeTab === "comments"
+                    ? "bg-white text-indigo-700 shadow-sm border border-slate-200"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Comments ({comments.length})
+              </button>
             </div>
 
-            {isContentDirty && (
+            {isContentDirty && activeTab === "editor" && (
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -462,8 +722,9 @@ export default function DraftDetailPage() {
             )}
           </div>
 
-          <div className="p-5 flex-1 flex flex-col min-h-[460px]">
-            {activeTab === "highlighted" ? (
+          <div className="p-5 flex-1 flex flex-col min-h-[500px]">
+            {/* VIEW 1: HIGHLIGHTED REVIEW */}
+            {activeTab === "highlighted" && (
               <div className="flex-1 flex flex-col">
                 <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
                   <span>Click any highlighted segment to view its guideline finding:</span>
@@ -482,13 +743,16 @@ export default function DraftDetailPage() {
                   {renderedHighlightedDraft}
                 </div>
               </div>
-            ) : (
+            )}
+
+            {/* VIEW 2: TEXT EDITOR */}
+            {activeTab === "editor" && (
               <div className="flex-1 flex flex-col">
                 <label
                   htmlFor="draft-editor-textarea"
                   className="block text-xs font-semibold text-slate-600 mb-1.5"
                 >
-                  Edit Copy (saving will create a new version and re-run brand analysis):
+                  Edit Copy (saving will create version v{draft.current_version + 1} and re-run analysis):
                 </label>
                 <textarea
                   id="draft-editor-textarea"
@@ -501,11 +765,162 @@ export default function DraftDetailPage() {
                 />
               </div>
             )}
+
+            {/* VIEW 3: VERSION HISTORY & DIFF */}
+            {activeTab === "diff" && (
+              <div className="flex-1 flex flex-col">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-700">Compare Base:</span>
+                    <select
+                      value={diffBaseVersionNo}
+                      onChange={(e) => setDiffBaseVersionNo(Number(e.target.value))}
+                      className="px-2 py-1 bg-white border border-slate-300 rounded font-medium"
+                    >
+                      {versions.map((v) => (
+                        <option key={`base-v-${v.version_no}`} value={v.version_no}>
+                          v{v.version_no} ({new Date(v.created_at).toLocaleTimeString()})
+                        </option>
+                      ))}
+                    </select>
+
+                    <span className="text-slate-400 font-bold">&rarr;</span>
+
+                    <span className="font-semibold text-slate-700">Target:</span>
+                    <select
+                      value={diffTargetVersionNo}
+                      onChange={(e) => setDiffTargetVersionNo(Number(e.target.value))}
+                      className="px-2 py-1 bg-white border border-slate-300 rounded font-medium"
+                    >
+                      {versions.map((v) => (
+                        <option key={`target-v-${v.version_no}`} value={v.version_no}>
+                          v{v.version_no} ({new Date(v.created_at).toLocaleTimeString()})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                      +{diffResult.addedCount} added
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold">
+                      -{diffResult.removedCount} removed
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex-1 p-4 rounded-lg bg-slate-50 border border-slate-200 font-mono text-sm leading-relaxed whitespace-pre-wrap text-slate-900 overflow-y-auto max-h-[460px]">
+                  {diffResult.tokens.map((token, idx) => {
+                    if (token.type === "added") {
+                      return (
+                        <ins
+                          key={`diff-token-${idx}`}
+                          className="bg-emerald-100 text-emerald-900 border-b-2 border-emerald-500 px-0.5 rounded no-underline font-semibold"
+                        >
+                          {token.value}
+                        </ins>
+                      );
+                    }
+                    if (token.type === "removed") {
+                      return (
+                        <del
+                          key={`diff-token-${idx}`}
+                          className="bg-rose-100 text-rose-900 line-through border-b-2 border-rose-400 px-0.5 rounded opacity-80"
+                        >
+                          {token.value}
+                        </del>
+                      );
+                    }
+                    return <span key={`diff-token-${idx}`}>{token.value}</span>;
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 4: COMMENTS THREAD */}
+            {activeTab === "comments" && (
+              <div className="flex-1 flex flex-col">
+                <div className="flex-1 overflow-y-auto space-y-3 mb-4 max-h-[360px] pr-1">
+                  {comments.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400 text-xs">
+                      No comments yet on this draft. Start the discussion below.
+                    </div>
+                  ) : (
+                    comments.map((c) => (
+                      <div
+                        key={c.id}
+                        className={`p-3.5 rounded-lg border text-xs ${
+                          c.parent_id
+                            ? "ml-6 bg-slate-50 border-slate-200"
+                            : "bg-white border-slate-200 shadow-2xs"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-slate-500 mb-1">
+                          <span className="font-semibold text-slate-800">
+                            User {c.author_id.slice(0, 8)}...
+                          </span>
+                          <span>{new Date(c.created_at).toLocaleString()}</span>
+                        </div>
+                        <p className="text-slate-800 text-sm whitespace-pre-wrap">{c.body}</p>
+                        {!c.parent_id && (
+                          <div className="mt-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setReplyParentId(c.id)}
+                              className="text-indigo-600 hover:underline font-medium text-xs"
+                            >
+                              Reply
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Add Comment Form */}
+                <form onSubmit={handlePostComment} className="pt-3 border-t border-slate-200">
+                  {replyParentId && (
+                    <div className="flex items-center justify-between text-xs text-indigo-700 bg-indigo-50 p-2 rounded mb-2">
+                      <span>Replying to comment #{replyParentId.slice(0, 6)}</span>
+                      <button
+                        type="button"
+                        onClick={() => setReplyParentId(null)}
+                        className="font-bold"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                  <label htmlFor="comment-input" className="block text-xs font-semibold text-slate-700 mb-1">
+                    Add review comment:
+                  </label>
+                  <textarea
+                    id="comment-input"
+                    rows={3}
+                    value={newCommentBody}
+                    onChange={(e) => setNewCommentBody(e.target.value)}
+                    placeholder="Write a comment or revision note..."
+                    className="w-full p-2.5 rounded-lg border border-slate-300 text-xs text-slate-900 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 mb-2"
+                  />
+                  <div className="text-right">
+                    <button
+                      type="submit"
+                      disabled={submittingComment || !newCommentBody.trim()}
+                      className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-sm transition-colors disabled:opacity-50"
+                    >
+                      {submittingComment ? "Posting..." : "Post Comment"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
           </div>
 
           <footer className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
             <span>
-              Version {draft.current_version} of {versions.length} &bull; {content.length} characters
+              v{draft.current_version} &bull; {content.length} characters
             </span>
             <span>NovaBrew Brand Governance</span>
           </footer>
@@ -558,7 +973,6 @@ export default function DraftDetailPage() {
                 const isNeedsHuman = f.status === "needs_human";
                 const isSelected = selectedFindingId === f.id;
 
-                // Severity colors
                 const severityLower = (f.severity || "medium").toLowerCase();
                 let severityBadge = "bg-amber-100 text-amber-800 border-amber-300";
                 if (severityLower === "high") {
@@ -670,7 +1084,7 @@ export default function DraftDetailPage() {
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
-                          onClick={() => handleDecision(f.id, "accepted")}
+                          onClick={() => handleFindingDecision(f.id, "accepted")}
                           className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
                             f.status === "accepted"
                               ? "bg-emerald-700 text-white"
@@ -681,7 +1095,7 @@ export default function DraftDetailPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDecision(f.id, "rejected")}
+                          onClick={() => handleFindingDecision(f.id, "rejected")}
                           className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
                             f.status === "rejected"
                               ? "bg-rose-700 text-white"
