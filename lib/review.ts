@@ -7,6 +7,7 @@ import {
 } from './exactChecks.ts';
 import { checkClaims, type ApprovedFact } from './claims.ts';
 import { reviewConfig } from './config.ts';
+import { getUnapprovedTermIds } from './knowledge.ts';
 
 export type EscalationReason = 'low_confidence' | 'no_source' | 'unmatched_claim';
 
@@ -31,6 +32,7 @@ async function loadApprovedData(supabase: SupabaseClient) {
     { data: rules, error: rulesErr },
     { data: facts, error: factsErr },
     { data: terms, error: termsErr },
+    unapprovedTermIds,
   ] = await Promise.all([
     supabase
       .from('brand_rules')
@@ -45,16 +47,28 @@ async function loadApprovedData(supabase: SupabaseClient) {
     supabase
       .from('terms')
       .select('id, term, type, replacement, rule_id'),
+    getUnapprovedTermIds(supabase).catch(() => new Set<string>()),
   ]);
 
   if (rulesErr) throw rulesErr;
   if (factsErr) throw factsErr;
   if (termsErr) throw termsErr;
 
+  const approvedRuleIds = new Set((rules ?? []).map((r: any) => r.id));
+  const unapprovedIds = unapprovedTermIds instanceof Set ? unapprovedTermIds : new Set<string>();
+
+  // Filter out any unapproved terms or terms attached to unapproved rules
+  const activeTerms = ((terms ?? []) as (Term & { id?: string; approved?: boolean })[]).filter((t) => {
+    if (t.id && unapprovedIds.has(t.id)) return false;
+    if (t.approved === false) return false;
+    if (t.rule_id && !approvedRuleIds.has(t.rule_id)) return false;
+    return true;
+  });
+
   return {
     rules: rules ?? [],
     facts: facts ?? [],
-    terms: (terms ?? []) as Term[],
+    terms: activeTerms as Term[],
   };
 }
 

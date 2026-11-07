@@ -41,19 +41,19 @@ Video, multiple languages, third-party integrations, single sign-on, embeddings.
 
 ## Current status
 (Update after each step.)
-- [ ] Step 0 project setup and deploy
-- [ ] Step 1 schema and seed
-- [ ] Step 2 LLM client
-- [ ] Step 3 exact checks
-- [ ] Step 4 review pipeline and validator
-- [ ] Step 5 review API and sample evaluation
-- [ ] Step 6 auth and roles
-- [ ] Step 7 drafts, versions, decisions
-- [ ] Step 8 approval workflow and comments
-- [ ] Step 9 claim verifier
-- [ ] Step 10 escalation queue
-- [ ] Step 11 guideline-gap insights
-- [ ] Steps 12 to 14 screens
+- [x] Step 0 project setup and deploy
+- [x] Step 1 schema and seed
+- [x] Step 2 LLM client
+- [x] Step 3 exact checks
+- [x] Step 4 review pipeline and validator
+- [x] Step 5 review API and sample evaluation
+- [x] Step 6 auth and roles
+- [x] Step 7 drafts, versions, decisions
+- [x] Step 8 approval workflow and comments
+- [x] Step 9 claim verifier
+- [x] Step 10 escalation queue
+- [x] Step 11 guideline-gap insights
+- [x] Steps 12 to 14 screens (/login, /drafts, /drafts/new, /drafts/[id], /approvals, /admin/knowledge, /insights)
 - [ ] Step 15 hardening
 - [ ] Step 16 README and deployment
 

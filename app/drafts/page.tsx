@@ -102,7 +102,19 @@ export default function DraftsListPage() {
               href="/approvals"
               className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium text-sm transition-colors"
             >
-              Approval Queue
+              Approvals
+            </Link>
+            <Link
+              href="/insights"
+              className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium text-sm transition-colors"
+            >
+              Insights
+            </Link>
+            <Link
+              href="/admin/knowledge"
+              className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium text-sm transition-colors"
+            >
+              Knowledge
             </Link>
             <Link
               href="/drafts/new"
