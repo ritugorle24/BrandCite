@@ -55,7 +55,7 @@ Video, multiple languages, third-party integrations, single sign-on, embeddings.
 - [x] Step 11 guideline-gap insights
 - [x] Steps 12 to 14 screens (/login, /drafts, /drafts/new, /drafts/[id], /approvals, /admin/knowledge, /insights)
 - [x] Step 15 hardening
-- [ ] Step 16 README and deployment
+- [x] Step 16 README and deployment
 
 
 
