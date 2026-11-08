@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Navbar from "@/components/Navbar";
 
 interface BrandRule {
   id: string;
@@ -158,85 +159,28 @@ export default function AdminKnowledgePage() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to update approval status");
+        throw new Error(data.error || "Failed to toggle approved status.");
       }
     } catch (err: any) {
-      alert(`Could not toggle approval: ${err.message}`);
-      // Revert on error
-      fetchKnowledge();
+      alert(`Approval update failed: ${err.message}. Reverting.`);
+      // Rollback
+      if (entity === "rule") {
+        setRules((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, approved: currentApproved } : r))
+        );
+      } else if (entity === "fact") {
+        setFacts((prev) =>
+          prev.map((f) => (f.id === id ? { ...f, approved: currentApproved } : f))
+        );
+      } else {
+        setTerms((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, approved: currentApproved } : t))
+        );
+      }
     }
   };
 
-  // Submit Add Form
-  const handleCreateItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setFormError(null);
-
-    let payload: any = {};
-    if (activeTab === "rules") {
-      payload = { entity: "rule", data: formRule };
-    } else if (activeTab === "facts") {
-      payload = { entity: "fact", data: formFact };
-    } else {
-      payload = { entity: "term", data: formTerm };
-    }
-
-    try {
-      const res = await fetch("/api/admin/knowledge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to create item");
-      }
-
-      setIsAdding(false);
-      resetForms();
-      await fetchKnowledge();
-    } catch (err: any) {
-      setFormError(err.message || "Failed to create item.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // Submit Edit Form
-  const handleUpdateItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingItem) return;
-
-    setSubmitting(true);
-    setFormError(null);
-
-    try {
-      const res = await fetch("/api/admin/knowledge", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          entity: editingItem.entity,
-          id: editingItem.data.id,
-          updates: editingItem.data,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to update item");
-      }
-
-      setEditingItem(null);
-      await fetchKnowledge();
-    } catch (err: any) {
-      setFormError(err.message || "Failed to save changes.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
+  // Reset modal fields
   const resetForms = () => {
     setFormRule({
       id: "",
@@ -262,56 +206,144 @@ export default function AdminKnowledgePage() {
     setFormError(null);
   };
 
-  // Filtered items based on search input
-  const query = search.toLowerCase().trim();
+  // Handle Add Form submission
+  const handleCreateItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    setSubmitting(true);
+
+    try {
+      let payload: any = { entity: activeTab };
+      if (activeTab === "rules") {
+        if (!formRule.id || !formRule.text) {
+          throw new Error("Rule ID and Rule Statement are required.");
+        }
+        payload.item = formRule;
+      } else if (activeTab === "facts") {
+        if (!formFact.id || !formFact.statement) {
+          throw new Error("Fact ID and Fact Statement are required.");
+        }
+        payload.item = {
+          ...formFact,
+          valid_until: formFact.valid_until || null,
+        };
+      } else {
+        if (!formTerm.term) {
+          throw new Error("Term is required.");
+        }
+        payload.item = {
+          ...formTerm,
+          rule_id: formTerm.rule_id || null,
+        };
+      }
+
+      const res = await fetch("/api/admin/knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create knowledge item.");
+      }
+
+      setIsAdding(false);
+      resetForms();
+      await fetchKnowledge();
+    } catch (err: any) {
+      setFormError(err.message || "Failed to save item.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle Edit Form submission
+  const handleUpdateItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+
+    setFormError(null);
+    setSubmitting(true);
+
+    try {
+      const { entity, data } = editingItem;
+      const res = await fetch("/api/admin/knowledge", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entity,
+          id: data.id,
+          updates: data,
+        }),
+      });
+
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(resData.error || "Failed to update item.");
+      }
+
+      setEditingItem(null);
+      await fetchKnowledge();
+    } catch (err: any) {
+      setFormError(err.message || "Failed to update item.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Filter lists based on search
   const filteredRules = rules.filter(
     (r) =>
-      r.id.toLowerCase().includes(query) ||
-      r.category.toLowerCase().includes(query) ||
-      r.text.toLowerCase().includes(query)
+      r.id.toLowerCase().includes(search.toLowerCase()) ||
+      r.text.toLowerCase().includes(search.toLowerCase()) ||
+      r.category.toLowerCase().includes(search.toLowerCase())
   );
 
   const filteredFacts = facts.filter(
     (f) =>
-      f.id.toLowerCase().includes(query) ||
-      f.statement.toLowerCase().includes(query) ||
-      (f.source_note && f.source_note.toLowerCase().includes(query))
+      f.id.toLowerCase().includes(search.toLowerCase()) ||
+      f.statement.toLowerCase().includes(search.toLowerCase()) ||
+      (f.source_note && f.source_note.toLowerCase().includes(search.toLowerCase()))
   );
 
   const filteredTerms = terms.filter(
     (t) =>
-      t.term.toLowerCase().includes(query) ||
-      (t.replacement && t.replacement.toLowerCase().includes(query)) ||
-      (t.rule_id && t.rule_id.toLowerCase().includes(query))
+      t.term.toLowerCase().includes(search.toLowerCase()) ||
+      (t.replacement && t.replacement.toLowerCase().includes(search.toLowerCase())) ||
+      (t.rule_id && t.rule_id.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // Access Denied State
+  // 403 Forbidden Access State
   if (accessDenied) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/50 rounded-xl p-8 text-center shadow-sm">
-          <div className="w-12 h-12 bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
-            !
-          </div>
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">
-            Admin Access Required
-          </h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
-            Only administrators are authorized to view, add, edit, or approve BrandCite knowledge rules, facts, and terms.
-          </p>
-          <div className="flex justify-center gap-3">
-            <Link
-              href="/drafts"
-              className="px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-lg text-sm font-medium hover:bg-zinc-800 transition"
-            >
-              Back to Drafts
-            </Link>
-            <Link
-              href="/login"
-              className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
-            >
-              Switch Account
-            </Link>
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+        <Navbar breadcrumb="Admin Access Required" />
+        <div className="flex-1 p-6 flex items-center justify-center">
+          <div className="max-w-md w-full bg-white border border-rose-200 rounded-xl p-8 text-center shadow-xs">
+            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
+              🚫
+            </div>
+            <h1 className="text-lg font-bold text-slate-900 mb-2">
+              Administrator Access Required
+            </h1>
+            <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+              Only administrators are authorized to view, add, edit, or approve BrandCite knowledge rules, facts, and terms.
+            </p>
+            <div className="flex justify-center gap-3">
+              <Link
+                href="/drafts"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition shadow-xs"
+              >
+                Back to Drafts
+              </Link>
+              <Link
+                href="/login"
+                className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
+              >
+                Switch Account
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -319,59 +351,28 @@ export default function AdminKnowledgePage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Top Navbar */}
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/drafts" className="text-xl font-bold tracking-tight text-amber-700 dark:text-amber-500">
-              BrandCite
-            </Link>
-            <span className="text-zinc-400 dark:text-zinc-600">/</span>
-            <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-              Knowledge Base Management
-            </span>
-            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-              Admin Only
-            </span>
-          </div>
+      <Navbar breadcrumb="Knowledge Base" />
 
-          <nav className="flex items-center gap-4 text-sm font-medium">
-            <Link
-              href="/drafts"
-              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition"
-            >
-              Drafts
-            </Link>
-            <Link
-              href="/approvals"
-              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition"
-            >
-              Approvals
-            </Link>
-            <Link
-              href="/insights"
-              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition"
-            >
-              Insights
-            </Link>
-            <span className="text-amber-700 dark:text-amber-400 font-semibold border-b-2 border-amber-600 pb-0.5">
-              Knowledge
-            </span>
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
         {/* Page Heading & Notice */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                Governance
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                Admin Only
+              </span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Brand Governance Knowledge Base
             </h1>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+            <p className="text-sm text-slate-500 mt-0.5">
               Manage approved brand rules, approved facts, and terminology.
-              <strong className="text-zinc-900 dark:text-zinc-200 ml-1">
+              <strong className="text-slate-700 ml-1">
                 Unapproved items are strictly excluded from AI and exact checks.
               </strong>
             </p>
@@ -382,48 +383,48 @@ export default function AdminKnowledgePage() {
               resetForms();
               setIsAdding(true);
             }}
-            className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-sm transition"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition"
           >
-            + Add New {activeTab === "rules" ? "Rule" : activeTab === "facts" ? "Fact" : "Term"}
+            <span>+ Add New {activeTab === "rules" ? "Rule" : activeTab === "facts" ? "Fact" : "Term"}</span>
           </button>
         </div>
 
         {/* Search & Tabs Toolbar */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 mb-6 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2 border-b sm:border-b-0 border-zinc-200 dark:border-zinc-800 pb-2 sm:pb-0">
+        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 mb-6 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="inline-flex p-1 bg-slate-100 rounded-lg border border-slate-200/80 overflow-x-auto text-xs font-medium">
             <button
               onClick={() => setActiveTab("rules")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+              className={`px-3.5 py-1.5 rounded-md whitespace-nowrap transition ${
                 activeTab === "rules"
-                  ? "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 font-semibold"
-                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               Brand Rules ({rules.length})
             </button>
             <button
               onClick={() => setActiveTab("facts")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+              className={`px-3.5 py-1.5 rounded-md whitespace-nowrap transition ${
                 activeTab === "facts"
-                  ? "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 font-semibold"
-                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               Approved Facts ({facts.length})
             </button>
             <button
               onClick={() => setActiveTab("terms")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+              className={`px-3.5 py-1.5 rounded-md whitespace-nowrap transition ${
                 activeTab === "terms"
-                  ? "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 font-semibold"
-                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               Terminology ({terms.length})
             </button>
           </div>
 
-          <div className="w-full sm:w-72">
+          <div className="w-full sm:w-64">
             <label htmlFor="search-input" className="sr-only">
               Search knowledge items
             </label>
@@ -433,20 +434,21 @@ export default function AdminKnowledgePage() {
               placeholder={`Search ${activeTab}...`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100"
             />
           </div>
         </div>
 
         {/* Global Loading / Error */}
         {loading && (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-12 text-center text-zinc-500 animate-pulse">
-            Loading knowledge items...
+          <div className="bg-white border border-slate-200/90 rounded-xl p-12 text-center text-slate-500 shadow-xs">
+            <div className="inline-block w-7 h-7 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p className="text-slate-600 font-medium text-sm">Loading knowledge items...</p>
           </div>
         )}
 
         {error && !loading && (
-          <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 p-4 rounded-xl mb-6">
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl mb-6 shadow-xs">
             <p className="font-semibold text-sm">Error loading knowledge base</p>
             <p className="text-xs mt-1">{error}</p>
           </div>
@@ -454,10 +456,10 @@ export default function AdminKnowledgePage() {
 
         {/* Section: RULES TABLE */}
         {!loading && !error && activeTab === "rules" && (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-left text-sm">
-                <thead className="bg-zinc-50 dark:bg-zinc-950 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+              <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
+                <thead className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <tr>
                     <th scope="col" className="px-6 py-3">Rule ID</th>
                     <th scope="col" className="px-6 py-3">Category</th>
@@ -467,10 +469,10 @@ export default function AdminKnowledgePage() {
                     <th scope="col" className="px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                <tbody className="divide-y divide-slate-100">
                   {filteredRules.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-zinc-500">
+                      <td colSpan={6} className="px-6 py-8 text-center text-slate-500 text-xs">
                         No brand rules match your search.
                       </td>
                     </tr>
@@ -478,33 +480,33 @@ export default function AdminKnowledgePage() {
                     filteredRules.map((r) => (
                       <tr
                         key={r.id}
-                        className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition ${
-                          !r.approved ? "bg-zinc-50/60 dark:bg-zinc-900/40 opacity-75" : ""
+                        className={`hover:bg-slate-50/60 transition-colors ${
+                          !r.approved ? "bg-slate-50/40 opacity-75" : ""
                         }`}
                       >
-                        <td className="px-6 py-4 whitespace-nowrap font-mono font-bold text-xs text-amber-700 dark:text-amber-400">
+                        <td className="px-6 py-4 whitespace-nowrap font-mono font-bold text-xs text-indigo-700">
                           {r.id}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                          <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
                             {r.category}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
-                            className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${
                               r.severity === "high"
-                                ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                                ? "bg-rose-50 text-rose-700 border-rose-200"
                                 : r.severity === "medium"
-                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                                : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-blue-50 text-blue-700 border-blue-200"
                             }`}
                           >
                             {r.severity}
                           </span>
                         </td>
                         <td className="px-6 py-4 max-w-md">
-                          <p className="text-zinc-800 dark:text-zinc-200 line-clamp-3">{r.text}</p>
+                          <p className="text-slate-800 text-xs leading-relaxed line-clamp-3">{r.text}</p>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                           <button
@@ -513,13 +515,13 @@ export default function AdminKnowledgePage() {
                             aria-label={`Toggle approval for rule ${r.id}`}
                             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition border ${
                               r.approved
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-100"
-                                : "bg-zinc-100 text-zinc-500 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700 hover:bg-zinc-200"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
                             }`}
                           >
                             <span
                               className={`w-2 h-2 rounded-full ${
-                                r.approved ? "bg-emerald-500" : "bg-zinc-400"
+                                r.approved ? "bg-emerald-500" : "bg-slate-400"
                               }`}
                             />
                             {r.approved ? "✓ Approved" : "✕ Unapproved"}
@@ -533,7 +535,7 @@ export default function AdminKnowledgePage() {
                                 data: { ...r },
                               })
                             }
-                            className="text-xs text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 underline font-medium"
+                            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
                           >
                             Edit
                           </button>
@@ -549,10 +551,10 @@ export default function AdminKnowledgePage() {
 
         {/* Section: FACTS TABLE */}
         {!loading && !error && activeTab === "facts" && (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-left text-sm">
-                <thead className="bg-zinc-50 dark:bg-zinc-950 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+              <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
+                <thead className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <tr>
                     <th scope="col" className="px-6 py-3">Fact ID</th>
                     <th scope="col" className="px-6 py-3">Approved Statement</th>
@@ -562,10 +564,10 @@ export default function AdminKnowledgePage() {
                     <th scope="col" className="px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                <tbody className="divide-y divide-slate-100">
                   {filteredFacts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-zinc-500">
+                      <td colSpan={6} className="px-6 py-8 text-center text-slate-500 text-xs">
                         No approved facts match your search.
                       </td>
                     </tr>
@@ -575,32 +577,32 @@ export default function AdminKnowledgePage() {
                       return (
                         <tr
                           key={f.id}
-                          className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition ${
-                            !f.approved ? "bg-zinc-50/60 dark:bg-zinc-900/40 opacity-75" : ""
+                          className={`hover:bg-slate-50/60 transition-colors ${
+                            !f.approved ? "bg-slate-50/40 opacity-75" : ""
                           }`}
                         >
-                          <td className="px-6 py-4 whitespace-nowrap font-mono font-bold text-xs text-amber-700 dark:text-amber-400">
+                          <td className="px-6 py-4 whitespace-nowrap font-mono font-bold text-xs text-indigo-700">
                             {f.id}
                           </td>
                           <td className="px-6 py-4 max-w-sm">
-                            <p className="text-zinc-900 dark:text-zinc-100 font-medium">{f.statement}</p>
+                            <p className="text-slate-900 text-xs font-medium leading-relaxed">{f.statement}</p>
                           </td>
-                          <td className="px-6 py-4 max-w-xs text-xs text-zinc-500 dark:text-zinc-400">
+                          <td className="px-6 py-4 max-w-xs text-xs text-slate-500">
                             {f.source_note || "—"}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {f.valid_until ? (
                               <span
-                                className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
                                   isExpired
-                                    ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 font-semibold"
-                                    : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                                    ? "bg-rose-50 text-rose-700 border-rose-200 font-semibold"
+                                    : "bg-slate-100 text-slate-700 border-slate-200"
                                 }`}
                               >
                                 {isExpired ? `Expired: ${f.valid_until}` : `Valid until ${f.valid_until}`}
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                              <span className="px-2 py-0.5 rounded text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 Perpetual
                               </span>
                             )}
@@ -612,13 +614,13 @@ export default function AdminKnowledgePage() {
                               aria-label={`Toggle approval for fact ${f.id}`}
                               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition border ${
                                 f.approved
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-100"
-                                  : "bg-zinc-100 text-zinc-500 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700 hover:bg-zinc-200"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                  : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
                               }`}
                             >
                               <span
                                 className={`w-2 h-2 rounded-full ${
-                                  f.approved ? "bg-emerald-500" : "bg-zinc-400"
+                                  f.approved ? "bg-emerald-500" : "bg-slate-400"
                                 }`}
                               />
                               {f.approved ? "✓ Approved" : "✕ Unapproved"}
@@ -632,7 +634,7 @@ export default function AdminKnowledgePage() {
                                   data: { ...f, valid_until: f.valid_until || "" },
                                 })
                               }
-                              className="text-xs text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 underline font-medium"
+                              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
                             >
                               Edit
                             </button>
@@ -649,10 +651,10 @@ export default function AdminKnowledgePage() {
 
         {/* Section: TERMS TABLE */}
         {!loading && !error && activeTab === "terms" && (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-left text-sm">
-                <thead className="bg-zinc-50 dark:bg-zinc-950 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+              <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
+                <thead className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <tr>
                     <th scope="col" className="px-6 py-3">Term</th>
                     <th scope="col" className="px-6 py-3">Type</th>
@@ -662,10 +664,10 @@ export default function AdminKnowledgePage() {
                     <th scope="col" className="px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                <tbody className="divide-y divide-slate-100">
                   {filteredTerms.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-zinc-500">
+                      <td colSpan={6} className="px-6 py-8 text-center text-slate-500 text-xs">
                         No terms match your search.
                       </td>
                     </tr>
@@ -673,34 +675,34 @@ export default function AdminKnowledgePage() {
                     filteredTerms.map((t) => (
                       <tr
                         key={t.id}
-                        className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition ${
-                          !t.approved ? "bg-zinc-50/60 dark:bg-zinc-900/40 opacity-75" : ""
+                        className={`hover:bg-slate-50/60 transition-colors ${
+                          !t.approved ? "bg-slate-50/40 opacity-75" : ""
                         }`}
                       >
-                        <td className="px-6 py-4 whitespace-nowrap font-semibold text-zinc-900 dark:text-zinc-100">
+                        <td className="px-6 py-4 whitespace-nowrap font-semibold text-xs text-slate-900">
                           {t.term}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
-                            className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${
                               t.type === "banned"
-                                ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-                                : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                ? "bg-rose-50 text-rose-700 border-rose-200"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
                             }`}
                           >
                             {t.type}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-xs text-zinc-600 dark:text-zinc-400">
+                        <td className="px-6 py-4 text-xs text-slate-600">
                           {t.replacement ? (
                             <span>
-                              Use: <strong className="text-zinc-800 dark:text-zinc-200">{t.replacement}</strong>
+                              Use: <strong className="text-slate-900">{t.replacement}</strong>
                             </span>
                           ) : (
-                            <span className="text-zinc-400">None</span>
+                            <span className="text-slate-400">None</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap font-mono text-xs text-amber-700 dark:text-amber-400">
+                        <td className="px-6 py-4 whitespace-nowrap font-mono text-xs text-indigo-700">
                           {t.rule_id || "—"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -710,13 +712,13 @@ export default function AdminKnowledgePage() {
                             aria-label={`Toggle approval for term ${t.term}`}
                             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition border ${
                               t.approved
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-100"
-                                : "bg-zinc-100 text-zinc-500 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700 hover:bg-zinc-200"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
                             }`}
                           >
                             <span
                               className={`w-2 h-2 rounded-full ${
-                                t.approved ? "bg-emerald-500" : "bg-zinc-400"
+                                t.approved ? "bg-emerald-500" : "bg-slate-400"
                               }`}
                             />
                             {t.approved ? "✓ Approved" : "✕ Unapproved"}
@@ -730,7 +732,7 @@ export default function AdminKnowledgePage() {
                                 data: { ...t },
                               })
                             }
-                            className="text-xs text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 underline font-medium"
+                            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
                           >
                             Edit
                           </button>
@@ -746,22 +748,22 @@ export default function AdminKnowledgePage() {
 
         {/* MODAL: ADD ITEM */}
         {isAdding && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between pb-4 border-b border-zinc-200 dark:border-zinc-800">
-                <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200/90 rounded-xl max-w-lg w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <h2 className="text-base font-bold text-slate-900">
                   Add New {activeTab === "rules" ? "Brand Rule" : activeTab === "facts" ? "Approved Fact" : "Term"}
                 </h2>
                 <button
                   onClick={() => setIsAdding(false)}
-                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xl font-bold"
+                  className="text-slate-400 hover:text-slate-700 text-xl font-bold leading-none"
                 >
                   &times;
                 </button>
               </div>
 
               {formError && (
-                <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 text-red-700 dark:text-red-300 text-xs">
+                <div className="mt-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
                   {formError}
                 </div>
               )}
@@ -770,7 +772,7 @@ export default function AdminKnowledgePage() {
                 {activeTab === "rules" && (
                   <>
                     <div>
-                      <label htmlFor="add-rule-id" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-rule-id" className="block text-xs font-semibold text-slate-700 mb-1">
                         Rule ID (e.g. R-TONE-05) *
                       </label>
                       <input
@@ -780,18 +782,18 @@ export default function AdminKnowledgePage() {
                         value={formRule.id}
                         onChange={(e) => setFormRule({ ...formRule, id: e.target.value })}
                         placeholder="R-TONE-05"
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="add-rule-category" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-rule-category" className="block text-xs font-semibold text-slate-700 mb-1">
                         Category *
                       </label>
                       <select
                         id="add-rule-category"
                         value={formRule.category}
                         onChange={(e) => setFormRule({ ...formRule, category: e.target.value })}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       >
                         <option value="tone">Tone</option>
                         <option value="terminology">Terminology</option>
@@ -800,14 +802,14 @@ export default function AdminKnowledgePage() {
                       </select>
                     </div>
                     <div>
-                      <label htmlFor="add-rule-severity" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-rule-severity" className="block text-xs font-semibold text-slate-700 mb-1">
                         Severity
                       </label>
                       <select
                         id="add-rule-severity"
                         value={formRule.severity}
                         onChange={(e) => setFormRule({ ...formRule, severity: e.target.value as any })}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       >
                         <option value="high">High</option>
                         <option value="medium">Medium</option>
@@ -815,7 +817,7 @@ export default function AdminKnowledgePage() {
                       </select>
                     </div>
                     <div>
-                      <label htmlFor="add-rule-text" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-rule-text" className="block text-xs font-semibold text-slate-700 mb-1">
                         Rule Body Text *
                       </label>
                       <textarea
@@ -825,18 +827,18 @@ export default function AdminKnowledgePage() {
                         value={formRule.text}
                         onChange={(e) => setFormRule({ ...formRule, text: e.target.value })}
                         placeholder="Describe the exact brand guideline..."
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
-                    <div className="flex items-center gap-2 pt-2">
+                    <div className="flex items-center gap-2 pt-1">
                       <input
                         id="add-rule-approved"
                         type="checkbox"
                         checked={formRule.approved}
                         onChange={(e) => setFormRule({ ...formRule, approved: e.target.checked })}
-                        className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                       />
-                      <label htmlFor="add-rule-approved" className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                      <label htmlFor="add-rule-approved" className="text-xs font-medium text-slate-700">
                         Mark as Approved immediately
                       </label>
                     </div>
@@ -846,7 +848,7 @@ export default function AdminKnowledgePage() {
                 {activeTab === "facts" && (
                   <>
                     <div>
-                      <label htmlFor="add-fact-id" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-fact-id" className="block text-xs font-semibold text-slate-700 mb-1">
                         Fact ID (e.g. F-SUST-03) *
                       </label>
                       <input
@@ -856,11 +858,11 @@ export default function AdminKnowledgePage() {
                         value={formFact.id}
                         onChange={(e) => setFormFact({ ...formFact, id: e.target.value })}
                         placeholder="F-SUST-03"
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="add-fact-statement" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-fact-statement" className="block text-xs font-semibold text-slate-700 mb-1">
                         Fact Statement *
                       </label>
                       <textarea
@@ -870,11 +872,11 @@ export default function AdminKnowledgePage() {
                         value={formFact.statement}
                         onChange={(e) => setFormFact({ ...formFact, statement: e.target.value })}
                         placeholder="e.g. NovaBrew 100% of packaging is recyclable."
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="add-fact-source" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-fact-source" className="block text-xs font-semibold text-slate-700 mb-1">
                         Source Note / Citation
                       </label>
                       <input
@@ -883,11 +885,11 @@ export default function AdminKnowledgePage() {
                         value={formFact.source_note}
                         onChange={(e) => setFormFact({ ...formFact, source_note: e.target.value })}
                         placeholder="e.g. Audit Report 2025, p. 12"
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="add-fact-expiry" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-fact-expiry" className="block text-xs font-semibold text-slate-700 mb-1">
                         Expiry Date (leave empty if perpetual)
                       </label>
                       <input
@@ -895,18 +897,18 @@ export default function AdminKnowledgePage() {
                         type="date"
                         value={formFact.valid_until}
                         onChange={(e) => setFormFact({ ...formFact, valid_until: e.target.value })}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
-                    <div className="flex items-center gap-2 pt-2">
+                    <div className="flex items-center gap-2 pt-1">
                       <input
                         id="add-fact-approved"
                         type="checkbox"
                         checked={formFact.approved}
                         onChange={(e) => setFormFact({ ...formFact, approved: e.target.checked })}
-                        className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                       />
-                      <label htmlFor="add-fact-approved" className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                      <label htmlFor="add-fact-approved" className="text-xs font-medium text-slate-700">
                         Mark as Approved immediately
                       </label>
                     </div>
@@ -916,7 +918,7 @@ export default function AdminKnowledgePage() {
                 {activeTab === "terms" && (
                   <>
                     <div>
-                      <label htmlFor="add-term-word" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-term-word" className="block text-xs font-semibold text-slate-700 mb-1">
                         Term *
                       </label>
                       <input
@@ -926,25 +928,25 @@ export default function AdminKnowledgePage() {
                         value={formTerm.term}
                         onChange={(e) => setFormTerm({ ...formTerm, term: e.target.value })}
                         placeholder="e.g. Nova Brew"
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="add-term-type" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-term-type" className="block text-xs font-semibold text-slate-700 mb-1">
                         Term Type *
                       </label>
                       <select
                         id="add-term-type"
                         value={formTerm.type}
                         onChange={(e) => setFormTerm({ ...formTerm, type: e.target.value as any })}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       >
                         <option value="banned">Banned</option>
                         <option value="preferred">Preferred</option>
                       </select>
                     </div>
                     <div>
-                      <label htmlFor="add-term-replacement" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-term-replacement" className="block text-xs font-semibold text-slate-700 mb-1">
                         Replacement / Suggested Alternative
                       </label>
                       <input
@@ -953,11 +955,11 @@ export default function AdminKnowledgePage() {
                         value={formTerm.replacement}
                         onChange={(e) => setFormTerm({ ...formTerm, replacement: e.target.value })}
                         placeholder="e.g. NovaBrew"
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="add-term-rule" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="add-term-rule" className="block text-xs font-semibold text-slate-700 mb-1">
                         Governing Rule ID (optional)
                       </label>
                       <input
@@ -966,36 +968,36 @@ export default function AdminKnowledgePage() {
                         value={formTerm.rule_id}
                         onChange={(e) => setFormTerm({ ...formTerm, rule_id: e.target.value })}
                         placeholder="e.g. R-TERM-01"
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
-                    <div className="flex items-center gap-2 pt-2">
+                    <div className="flex items-center gap-2 pt-1">
                       <input
                         id="add-term-approved"
                         type="checkbox"
                         checked={formTerm.approved}
                         onChange={(e) => setFormTerm({ ...formTerm, approved: e.target.checked })}
-                        className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                       />
-                      <label htmlFor="add-term-approved" className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                      <label htmlFor="add-term-approved" className="text-xs font-medium text-slate-700">
                         Mark as Approved immediately
                       </label>
                     </div>
                   </>
                 )}
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setIsAdding(false)}
-                    className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="px-4 py-2 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
+                    className="px-4 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs transition disabled:opacity-50"
                   >
                     {submitting ? "Saving..." : "Create Item"}
                   </button>
@@ -1007,22 +1009,22 @@ export default function AdminKnowledgePage() {
 
         {/* MODAL: EDIT ITEM */}
         {editingItem && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between pb-4 border-b border-zinc-200 dark:border-zinc-800">
-                <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200/90 rounded-xl max-w-lg w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <h2 className="text-base font-bold text-slate-900">
                   Edit {editingItem.entity === "rule" ? "Rule" : editingItem.entity === "fact" ? "Fact" : "Term"}
                 </h2>
                 <button
                   onClick={() => setEditingItem(null)}
-                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xl font-bold"
+                  className="text-slate-400 hover:text-slate-700 text-xl font-bold leading-none"
                 >
                   &times;
                 </button>
               </div>
 
               {formError && (
-                <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 text-red-700 dark:text-red-300 text-xs">
+                <div className="mt-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
                   {formError}
                 </div>
               )}
@@ -1031,16 +1033,16 @@ export default function AdminKnowledgePage() {
                 {editingItem.entity === "rule" && (
                   <>
                     <div>
-                      <label className="block text-xs font-semibold text-zinc-500 mb-1">Rule ID</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Rule ID</label>
                       <input
                         type="text"
                         disabled
                         value={editingItem.data.id}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800 font-mono text-zinc-500 cursor-not-allowed"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-slate-50 font-mono text-slate-500 cursor-not-allowed"
                       />
                     </div>
                     <div>
-                      <label htmlFor="edit-rule-category" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="edit-rule-category" className="block text-xs font-semibold text-slate-700 mb-1">
                         Category
                       </label>
                       <select
@@ -1052,7 +1054,7 @@ export default function AdminKnowledgePage() {
                             data: { ...editingItem.data, category: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       >
                         <option value="tone">Tone</option>
                         <option value="terminology">Terminology</option>
@@ -1061,7 +1063,7 @@ export default function AdminKnowledgePage() {
                       </select>
                     </div>
                     <div>
-                      <label htmlFor="edit-rule-severity" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="edit-rule-severity" className="block text-xs font-semibold text-slate-700 mb-1">
                         Severity
                       </label>
                       <select
@@ -1073,7 +1075,7 @@ export default function AdminKnowledgePage() {
                             data: { ...editingItem.data, severity: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       >
                         <option value="high">High</option>
                         <option value="medium">Medium</option>
@@ -1081,7 +1083,7 @@ export default function AdminKnowledgePage() {
                       </select>
                     </div>
                     <div>
-                      <label htmlFor="edit-rule-text" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="edit-rule-text" className="block text-xs font-semibold text-slate-700 mb-1">
                         Rule Text
                       </label>
                       <textarea
@@ -1094,7 +1096,7 @@ export default function AdminKnowledgePage() {
                             data: { ...editingItem.data, text: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                   </>
@@ -1103,16 +1105,16 @@ export default function AdminKnowledgePage() {
                 {editingItem.entity === "fact" && (
                   <>
                     <div>
-                      <label className="block text-xs font-semibold text-zinc-500 mb-1">Fact ID</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Fact ID</label>
                       <input
                         type="text"
                         disabled
                         value={editingItem.data.id}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800 font-mono text-zinc-500 cursor-not-allowed"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-slate-50 font-mono text-slate-500 cursor-not-allowed"
                       />
                     </div>
                     <div>
-                      <label htmlFor="edit-fact-statement" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="edit-fact-statement" className="block text-xs font-semibold text-slate-700 mb-1">
                         Fact Statement
                       </label>
                       <textarea
@@ -1125,11 +1127,11 @@ export default function AdminKnowledgePage() {
                             data: { ...editingItem.data, statement: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="edit-fact-source" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="edit-fact-source" className="block text-xs font-semibold text-slate-700 mb-1">
                         Source Note
                       </label>
                       <input
@@ -1142,11 +1144,11 @@ export default function AdminKnowledgePage() {
                             data: { ...editingItem.data, source_note: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="edit-fact-expiry" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="edit-fact-expiry" className="block text-xs font-semibold text-slate-700 mb-1">
                         Expiry Date (leave blank for perpetual)
                       </label>
                       <input
@@ -1159,7 +1161,7 @@ export default function AdminKnowledgePage() {
                             data: { ...editingItem.data, valid_until: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                   </>
@@ -1168,7 +1170,7 @@ export default function AdminKnowledgePage() {
                 {editingItem.entity === "term" && (
                   <>
                     <div>
-                      <label htmlFor="edit-term-word" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="edit-term-word" className="block text-xs font-semibold text-slate-700 mb-1">
                         Term
                       </label>
                       <input
@@ -1181,11 +1183,11 @@ export default function AdminKnowledgePage() {
                             data: { ...editingItem.data, term: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="edit-term-type" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="edit-term-type" className="block text-xs font-semibold text-slate-700 mb-1">
                         Term Type
                       </label>
                       <select
@@ -1197,14 +1199,14 @@ export default function AdminKnowledgePage() {
                             data: { ...editingItem.data, type: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       >
                         <option value="banned">Banned</option>
                         <option value="preferred">Preferred</option>
                       </select>
                     </div>
                     <div>
-                      <label htmlFor="edit-term-replacement" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="edit-term-replacement" className="block text-xs font-semibold text-slate-700 mb-1">
                         Replacement / Suggested Alternative
                       </label>
                       <input
@@ -1217,11 +1219,11 @@ export default function AdminKnowledgePage() {
                             data: { ...editingItem.data, replacement: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                     <div>
-                      <label htmlFor="edit-term-rule" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      <label htmlFor="edit-term-rule" className="block text-xs font-semibold text-slate-700 mb-1">
                         Governing Rule ID
                       </label>
                       <input
@@ -1234,24 +1236,24 @@ export default function AdminKnowledgePage() {
                             data: { ...editingItem.data, rule_id: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 focus:ring-2 focus:ring-amber-500 outline-none"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100 outline-none"
                       />
                     </div>
                   </>
                 )}
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setEditingItem(null)}
-                    className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="px-4 py-2 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
+                    className="px-4 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs transition disabled:opacity-50"
                   >
                     {submitting ? "Saving..." : "Save Changes"}
                   </button>
@@ -1264,4 +1266,3 @@ export default function AdminKnowledgePage() {
     </div>
   );
 }
-

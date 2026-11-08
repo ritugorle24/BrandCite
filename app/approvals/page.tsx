@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSourceInfo } from "@/lib/sources";
+import Navbar from "@/components/Navbar";
 
 interface DraftInReview {
   id: string;
@@ -197,58 +198,20 @@ export default function ApprovalsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Top Navigation */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/drafts"
-              className="flex items-center gap-2 text-slate-900 font-bold text-lg hover:text-indigo-600 transition-colors"
-            >
-              <span className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-base">
-                B
-              </span>
-              <span>BrandCite</span>
-            </Link>
-            <span className="text-slate-300 font-light" aria-hidden="true">/</span>
-            <span className="text-sm font-semibold text-slate-700">Manager Dashboard</span>
-          </div>
-
-          <nav aria-label="Main Navigation" className="flex items-center gap-3">
-            <Link
-              href="/drafts"
-              className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium text-sm transition-colors"
-            >
-              Drafts
-            </Link>
-            <Link
-              href="/insights"
-              className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium text-sm transition-colors"
-            >
-              Insights
-            </Link>
-            <Link
-              href="/admin/knowledge"
-              className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium text-sm transition-colors"
-            >
-              Knowledge
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium text-sm transition-colors"
-            >
-              Sign Out
-            </button>
-          </nav>
-        </div>
-      </header>
+      <Navbar breadcrumb="Approvals" />
 
       {/* Main Content Area */}
-      <main className="max-w-6xl w-full mx-auto px-4 sm:px-6 py-8 flex-1">
+      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
         <div className="mb-6">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+              Governance
+            </span>
+          </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Manager Approval Hub</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 mt-0.5">
             Sign off on pending draft submissions and triage escalated findings requiring human review.
           </p>
         </div>

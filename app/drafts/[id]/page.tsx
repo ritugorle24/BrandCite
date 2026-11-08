@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { getSourceInfo } from "@/lib/sources";
 import { computeSimpleDiff, DiffSummary } from "@/lib/diff";
+import Navbar from "@/components/Navbar";
 
 interface Finding {
   id: string;
@@ -446,11 +447,14 @@ export default function DraftDetailPage() {
   // Loading State
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
-        <div role="status" className="bg-white rounded-xl border border-slate-200 p-8 text-center max-w-sm w-full shadow-sm">
-          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <h2 className="text-slate-800 font-semibold text-base mb-1">Loading Draft</h2>
-          <p className="text-slate-500 text-sm">Fetching copy, versions, comments, and review findings...</p>
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+        <Navbar breadcrumb="Loading Draft..." />
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div role="status" className="bg-white rounded-xl border border-slate-200/90 p-8 text-center max-w-sm w-full shadow-xs">
+            <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <h2 className="text-slate-800 font-semibold text-base mb-1">Loading Draft</h2>
+            <p className="text-slate-500 text-xs">Fetching copy, versions, comments, and review findings...</p>
+          </div>
         </div>
       </div>
     );
@@ -459,19 +463,22 @@ export default function DraftDetailPage() {
   // Error State
   if (error || !draft) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
-        <div role="alert" className="bg-white rounded-xl border border-rose-200 p-8 text-center max-w-md w-full shadow-sm">
-          <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-xl mx-auto mb-3">
-            !
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+        <Navbar breadcrumb="Error" />
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div role="alert" className="bg-white rounded-xl border border-rose-200 p-8 text-center max-w-md w-full shadow-xs">
+            <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-lg mx-auto mb-3">
+              !
+            </div>
+            <h2 className="text-slate-900 font-bold text-base mb-2">Error Loading Draft</h2>
+            <p className="text-rose-700 text-xs mb-6">{error || "Draft not found."}</p>
+            <Link
+              href="/drafts"
+              className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors shadow-xs"
+            >
+              &larr; Back to Drafts List
+            </Link>
           </div>
-          <h2 className="text-slate-900 font-bold text-lg mb-2">Error Loading Draft</h2>
-          <p className="text-rose-700 text-sm mb-6">{error || "Draft not found."}</p>
-          <Link
-            href="/drafts"
-            className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
-          >
-            &larr; Back to Drafts List
-          </Link>
         </div>
       </div>
     );
@@ -497,42 +504,9 @@ export default function DraftDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Top Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/drafts"
-              className="flex items-center gap-2 text-slate-900 font-bold text-base hover:text-indigo-600 transition-colors"
-            >
-              <span className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center text-white text-xs">
-                B
-              </span>
-              <span>BrandCite</span>
-            </Link>
-            <span className="text-slate-300 font-light" aria-hidden="true">/</span>
-            <span className="text-sm font-semibold text-slate-800 truncate max-w-[200px] sm:max-w-xs">
-              {draft.title || "Untitled Draft"}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/approvals"
-              className="text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 transition-colors"
-            >
-              Approval Hub
-            </Link>
-            <Link
-              href="/drafts"
-              className="text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 transition-colors"
-            >
-              All Drafts
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Navbar breadcrumb={draft.title || "Untitled Draft"} />
 
       {/* Draft Status Workflow Bar */}
       <aside aria-label="Draft workflow status" className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3">

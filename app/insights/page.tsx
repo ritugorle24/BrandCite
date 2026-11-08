@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { generatePlainLanguageRuleNote } from "@/lib/knowledge";
+import Navbar from "@/components/Navbar";
 
 interface RuleGapInsight {
   id: string;
@@ -99,24 +100,27 @@ export default function InsightsPage() {
   // Forbidden / Non-manager View
   if (forbidden) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-900/50 rounded-xl p-8 text-center shadow-sm">
-          <div className="w-12 h-12 bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
-            🔒
-          </div>
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">
-            Manager & Admin Access Only
-          </h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
-            Guideline gap insights are reserved for managers and administrators to analyze brand rule clarity and reviewer consensus.
-          </p>
-          <div className="flex justify-center gap-3">
-            <Link
-              href="/drafts"
-              className="px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-lg text-sm font-medium hover:bg-zinc-800 transition"
-            >
-              Return to My Drafts
-            </Link>
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+        <Navbar breadcrumb="Access Restricted" />
+        <div className="flex-1 p-6 flex items-center justify-center">
+          <div className="max-w-md w-full bg-white border border-amber-200 rounded-xl p-8 text-center shadow-xs">
+            <div className="w-12 h-12 bg-amber-50 text-amber-700 rounded-full flex items-center justify-center mx-auto mb-4 text-xl font-bold">
+              🔒
+            </div>
+            <h1 className="text-lg font-bold text-slate-900 mb-2">
+              Manager & Admin Access Only
+            </h1>
+            <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+              Guideline gap insights are reserved for managers and administrators to analyze brand rule clarity and reviewer consensus.
+            </p>
+            <div className="flex justify-center gap-3">
+              <Link
+                href="/drafts"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition shadow-xs"
+              >
+                Return to My Drafts
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -124,55 +128,24 @@ export default function InsightsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Top Navbar */}
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/drafts" className="text-xl font-bold tracking-tight text-amber-700 dark:text-amber-500">
-              BrandCite
-            </Link>
-            <span className="text-zinc-400 dark:text-zinc-600">/</span>
-            <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-              Guideline Gap Insights
+      <Navbar breadcrumb="Insights" />
+
+      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
+        {/* Header Description */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+              Analytics
             </span>
           </div>
-
-          <nav className="flex items-center gap-4 text-sm font-medium">
-            <Link
-              href="/drafts"
-              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition"
-            >
-              Drafts
-            </Link>
-            <Link
-              href="/approvals"
-              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition"
-            >
-              Approvals
-            </Link>
-            <span className="text-amber-700 dark:text-amber-400 font-semibold border-b-2 border-amber-600 pb-0.5">
-              Insights
-            </span>
-            <Link
-              href="/admin/knowledge"
-              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition"
-            >
-              Knowledge
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Description */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Guideline Gaps & Rule Rejection Analysis
           </h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 max-w-3xl">
+          <p className="text-sm text-slate-500 mt-0.5 max-w-3xl">
             Ranked list of brand rules based on reviewer feedback. A rule is marked as{" "}
-            <strong className="text-amber-700 dark:text-amber-400 font-semibold">
+            <strong className="text-slate-800 font-semibold">
               possibly unclear
             </strong>{" "}
             when it has been flagged at least 3 times and rejected at least 50% of the time.
@@ -180,75 +153,75 @@ export default function InsightsPage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 shadow-sm">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Total Monitored Rules
             </p>
-            <p className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-2">
+            <p className="text-2xl font-bold text-slate-900 mt-1.5">
               {totalMonitored}
             </p>
-            <p className="text-xs text-zinc-500 mt-1">Active brand guidelines</p>
+            <p className="text-xs text-slate-400 mt-1">Active brand guidelines</p>
           </div>
 
-          <div className="bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-900/50 rounded-xl p-5 shadow-sm">
-            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+          <div className="bg-white border border-amber-200 rounded-xl p-5 shadow-xs">
+            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">
               Possibly Unclear Guidelines
             </p>
-            <p className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 mt-2">
+            <p className="text-2xl font-bold text-amber-700 mt-1.5">
               {unclearCount}
             </p>
-            <p className="text-xs text-zinc-500 mt-1">≥3 flags & ≥50% rejection rate</p>
+            <p className="text-xs text-slate-400 mt-1">≥3 flags & ≥50% rejection</p>
           </div>
 
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 shadow-sm">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-              Total Rule Violations Flagged
+          <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Total Violations Flagged
             </p>
-            <p className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-2">
+            <p className="text-2xl font-bold text-slate-900 mt-1.5">
               {totalFlagged}
             </p>
-            <p className="text-xs text-zinc-500 mt-1">Across all draft reviews</p>
+            <p className="text-xs text-slate-400 mt-1">Across all draft reviews</p>
           </div>
 
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 shadow-sm">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+          <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Peak Rejection Rate
             </p>
-            <p className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-100 mt-2">
+            <p className="text-2xl font-bold text-slate-900 mt-1.5">
               {Math.round(highestRejection * 100)}%
             </p>
-            <p className="text-xs text-zinc-500 mt-1">Highest individual rule rejection</p>
+            <p className="text-xs text-slate-400 mt-1">Highest individual rule rejection</p>
           </div>
         </div>
 
         {/* Toolbar: Search and Filter */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 mb-6 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 mb-6 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="inline-flex p-1 bg-slate-100 rounded-lg border border-slate-200/80 text-xs font-medium">
             <button
               onClick={() => setFilterUnclearOnly(false)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+              className={`px-3.5 py-1.5 rounded-md transition ${
                 !filterUnclearOnly
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-sm"
-                  : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 hover:bg-zinc-200"
+                  ? "bg-white text-slate-900 font-semibold shadow-2xs"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               All Rules ({rules.length})
             </button>
             <button
               onClick={() => setFilterUnclearOnly(true)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-md transition flex items-center gap-1.5 ${
                 filterUnclearOnly
-                  ? "bg-amber-600 text-white shadow-sm"
-                  : "bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100"
+                  ? "bg-amber-600 text-white font-semibold shadow-2xs"
+                  : "text-amber-800 hover:text-amber-900 hover:bg-amber-50/60"
               }`}
             >
               <span>⚠️</span>
-              <span>Possibly Unclear Only ({unclearCount})</span>
+              <span>Possibly Unclear ({unclearCount})</span>
             </button>
           </div>
 
-          <div className="w-full sm:w-80">
+          <div className="w-full sm:w-72">
             <label htmlFor="search-rules" className="sr-only">
               Search rules
             </label>
@@ -258,34 +231,35 @@ export default function InsightsPage() {
               placeholder="Search by ID, category, or wording..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-100"
             />
           </div>
         </div>
 
         {/* Loading / Error States */}
         {loading && (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-12 text-center text-zinc-500 animate-pulse">
-            Calculating guideline gap insights...
+          <div className="bg-white border border-slate-200/90 rounded-xl p-12 text-center text-slate-500 shadow-xs">
+            <div className="inline-block w-7 h-7 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p className="text-slate-600 font-medium text-sm">Calculating guideline gap insights...</p>
           </div>
         )}
 
         {error && !loading && (
-          <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 p-4 rounded-xl mb-6 text-sm">
-            <p className="font-semibold">Unable to load insights</p>
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl mb-6 text-xs shadow-xs">
+            <p className="font-semibold text-sm">Unable to load insights</p>
             <p className="text-xs mt-1">{error}</p>
           </div>
         )}
 
         {/* RANKED TABLE */}
         {!loading && !error && (
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
               <table
-                className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-left text-sm"
+                className="min-w-full divide-y divide-slate-100 text-left text-sm"
                 aria-label="Guideline Gap Insights Table"
               >
-                <thead className="bg-zinc-50 dark:bg-zinc-950 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                <thead className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-center w-12">#</th>
                     <th scope="col" className="px-4 py-3">Rule</th>
@@ -299,10 +273,10 @@ export default function InsightsPage() {
                     <th scope="col" className="px-4 py-3">Plain-Language Analysis</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                <tbody className="divide-y divide-slate-100">
                   {displayedRules.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-12 text-center text-zinc-500">
+                      <td colSpan={10} className="px-6 py-12 text-center text-slate-500 text-xs">
                         No rules found matching your criteria.
                       </td>
                     </tr>
@@ -326,48 +300,48 @@ export default function InsightsPage() {
                       return (
                         <tr
                           key={rule.id}
-                          className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition ${
+                          className={`hover:bg-slate-50/60 transition-colors ${
                             isUnclear
-                              ? "bg-amber-50/50 dark:bg-amber-950/20"
+                              ? "bg-amber-50/40"
                               : ""
                           }`}
                         >
                           {/* Rank */}
-                          <td className="px-4 py-4 text-center font-bold text-xs text-zinc-400">
+                          <td className="px-4 py-4 text-center font-bold text-xs text-slate-400">
                             {idx + 1}
                           </td>
 
                           {/* Rule ID */}
-                          <td className="px-4 py-4 whitespace-nowrap font-mono font-bold text-xs text-amber-700 dark:text-amber-400">
+                          <td className="px-4 py-4 whitespace-nowrap font-mono font-bold text-xs text-indigo-700">
                             {rule.id}
                           </td>
 
                           {/* Category */}
                           <td className="px-4 py-4 whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                            <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
                               {rule.category}
                             </span>
                           </td>
 
                           {/* Rule Text */}
                           <td className="px-4 py-4 max-w-xs">
-                            <p className="text-xs text-zinc-800 dark:text-zinc-200 line-clamp-3">
+                            <p className="text-xs text-slate-800 leading-relaxed line-clamp-3">
                               {rule.text}
                             </p>
                           </td>
 
                           {/* Flagged */}
-                          <td className="px-4 py-4 whitespace-nowrap text-right font-medium text-xs text-zinc-700 dark:text-zinc-300">
+                          <td className="px-4 py-4 whitespace-nowrap text-right font-medium text-xs text-slate-700">
                             {flagged}
                           </td>
 
                           {/* Accepted */}
-                          <td className="px-4 py-4 whitespace-nowrap text-right font-medium text-xs text-emerald-700 dark:text-emerald-400">
+                          <td className="px-4 py-4 whitespace-nowrap text-right font-medium text-xs text-emerald-700">
                             {accepted}
                           </td>
 
                           {/* Rejected */}
-                          <td className="px-4 py-4 whitespace-nowrap text-right font-medium text-xs text-rose-700 dark:text-rose-400">
+                          <td className="px-4 py-4 whitespace-nowrap text-right font-medium text-xs text-rose-700">
                             {rejected}
                           </td>
 
@@ -377,15 +351,15 @@ export default function InsightsPage() {
                               <span
                                 className={`text-xs font-bold ${
                                   rejPct >= 50
-                                    ? "text-rose-600 dark:text-rose-400"
+                                    ? "text-rose-600"
                                     : rejPct > 0
-                                    ? "text-amber-600 dark:text-amber-400"
-                                    : "text-zinc-400"
+                                    ? "text-amber-600"
+                                    : "text-slate-400"
                                 }`}
                               >
                                 {rejPct}%
                               </span>
-                              <div className="w-16 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                              <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                 <div
                                   className={`h-full rounded-full ${
                                     rejPct >= 50 ? "bg-rose-500" : "bg-amber-500"
@@ -399,16 +373,16 @@ export default function InsightsPage() {
                           {/* Clarity Status */}
                           <td className="px-4 py-4 whitespace-nowrap text-center">
                             {isUnclear ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-700">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
                                 <span>⚠️</span>
                                 <span>Possibly Unclear</span>
                               </span>
                             ) : flagged >= 3 ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 Clear / Accepted
                               </span>
                             ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500">
                                 Low Sample
                               </span>
                             )}
@@ -419,8 +393,8 @@ export default function InsightsPage() {
                             <p
                               className={`text-xs leading-relaxed ${
                                 isUnclear
-                                  ? "text-amber-900 dark:text-amber-200 font-medium bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg border border-amber-200 dark:border-amber-900/60"
-                                  : "text-zinc-600 dark:text-zinc-400"
+                                  ? "text-amber-900 font-medium bg-amber-50 p-2 rounded-lg border border-amber-200/80"
+                                  : "text-slate-600"
                               }`}
                             >
                               {plainNote}
@@ -439,4 +413,3 @@ export default function InsightsPage() {
     </div>
   );
 }
-
